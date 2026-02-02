@@ -43,7 +43,7 @@ namespace Codography
         }
 
         // Butona tıklandığında çalışacak olan metot
-        private void btnAnaliz_Click(object sender, RoutedEventArgs e)
+        private async void btnAnaliz_Click(object sender, RoutedEventArgs e)
         {
             // Klasör seçme penceresini açıyoruz
             var dialog = new Microsoft.Win32.OpenFolderDialog
@@ -53,21 +53,31 @@ namespace Codography
 
             if (dialog.ShowDialog() == true)
             {
+                string yol = dialog.FolderName;
                 txtDurum.Text = "Analiz ediliyor, lütfen bekleyin...";
+                btnAnaliz.IsEnabled = false; // Analiz sürerken butonu kilitleyelim
 
-                // Seçilen klasörün tam yolu Analiz metoduna gönderilir. Analiz burada başlar.
-                AnaliziBaslat(dialog.FolderName);
+                // Listeleri temizlemeyi analiz kısmından UI içine aldık.
+                GlobalNodes.Clear();
+                GlobalEdges.Clear();
+
+                // --- ASENKRON ÇALIŞTIRMA ---
+                // Task.Run ile analiz işini arka plana atıyoruz, UI donmaması için.
+                await Task.Run(() =>
+                {
+                    AnaliziBaslat(yol);
+                });
+
+                btnAnaliz.IsEnabled = true; // // Analiz sonrası butonu açalım.
 
                 txtDurum.Text = "Analiz tamamlandı!";
+                
             }
         }
 
         // Sabit metin yerine klasör yolu alan yeni ana metodumuz.
         public void AnaliziBaslat(string secilenKlasorYolu)
         {
-            // Önceki bilgiler ile karışmaması için yeni analize başlamadan bellek temizlenir.
-            GlobalNodes.Clear();
-            GlobalEdges.Clear();
 
             // .cs dosyalarını bulurken hata almamak için klasör var mı kontrolü.
             if (!Directory.Exists(secilenKlasorYolu)) return;
@@ -113,7 +123,14 @@ namespace Codography
                 GlobalEdges.AddRange(gezgin.Edges);
             }
 
-            MessageBox.Show($"Analiz Bitti!\nDosya Sayısı: {tumAgaclar.Count}\nToplam Düğüm: {GlobalNodes.Count}\nToplam Bağlantı: {GlobalEdges.Count}");
+            // Arka plan – UI ayrımı için UI işlemi bilinçli şekilde UI thread’e alındı
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                MessageBox.Show($"Analiz Bitti!\n" +
+                                $"Dosya Sayısı: {tumAgaclar.Count}\n" +
+                                $"Toplam Düğüm: {GlobalNodes.Count}\n" +
+                                $"Toplam Bağlantı: {GlobalEdges.Count}");
+            });
         }
     }
 
@@ -143,8 +160,9 @@ namespace Codography
         // Gezgin kodun içinde bir Sınıf (Class) gördüğü anda bu metot tetiklenir.
         public override void VisitClassDeclaration(ClassDeclarationSyntax node)
         {
-            // “Şu an bu sınıftayız”
-            _currentClassId = node.Identifier.Text;
+            // Aynı isimli sınıfların çakışmaması için Namespace bilgisi eklendi artık : (Namespace + ClassName)
+            var classSymbol = _model.GetDeclaredSymbol(node);
+            _currentClassId = classSymbol?.ToDisplayString() ?? node.Identifier.Text;
 
             // Sınıfı bir düğüm olarak ekle
             Nodes.Add(new CodeNode
@@ -153,6 +171,28 @@ namespace Codography
                 Name = node.Identifier.Text,
                 Type = NodeType.Class
             });
+
+            // 2. KALITIM (Inheritance) KONTROLÜ
+            if (node.BaseList != null) // Eğer sınıfın bir base listesi varsa ( : Arac gibi)
+            {
+                foreach (var baseType in node.BaseList.Types)
+                {
+                    // Semantik modelden miras alınan sınıfın tam adını alıyoruz
+                    var sembol = _model.GetSymbolInfo(baseType.Type).Symbol;
+                    if (sembol != null)
+                    {
+                        // Hedef ID'yi tam isim olarak alıyoruz (ToDisplayString)
+                        string targetId = sembol.ToDisplayString();
+
+                        Edges.Add(new CodeEdge
+                        {
+                            SourceId = _currentClassId,
+                            TargetId = targetId,
+                            Type = EdgeType.Inheritance // İlişki tipi artık Inheritance
+                        });
+                    }
+                }
+            }
 
             // Eğer bu satır yazılmazsa, gezgin sınıfın kapısından içeri girmez. İçerideki metotları da görmesi için "yoluna devam et" komutu vermen gerekir.
             base.VisitClassDeclaration(node);
@@ -185,7 +225,7 @@ namespace Codography
             // Eğer gerçekten bir metotsa ve biz şuan bir metot içindeysek
             if (sembol != null && _currentMethodId != null)
             {
-                // Çağrılan metodun ID’si. (Aynı isimli sınıflar çakışmaz)
+                // Çağrılan metodun ID’si. (Aynı isimli sınıflar ve metotlar çakışmaz)
                 string targetId = $"{sembol.ContainingSymbol.ToDisplayString()}.{sembol.Name}";
 
                 // ÇİZGİYİ (EDGE) EKLE: Kaynak metodumdan hedef metoda bir çağrı var
