@@ -3,6 +3,7 @@ using System.Windows; // WPF için gerekli (Window, MessageBox). Konsol değil, 
 using Microsoft.CodeAnalysis; // Roslyn’in çekirdeği (Semantic, Symbol, Compilation vb.).
 using Microsoft.CodeAnalysis.CSharp; // “Bu kod C# kodu” demek (Parse işlemi).
 using Microsoft.CodeAnalysis.CSharp.Syntax; // ClassDeclarationSyntax, MethodDeclarationSyntax, InvocationExpressionSyntax (kod parçalarının türleri için).
+using System.IO; // Artık kodu string olarak yazmıyoruz, DISK’ten okuyacağız.
 
 namespace Codography
 {
@@ -30,57 +31,89 @@ namespace Codography
     }
     public partial class MainWindow : Window  // Pencere sınıfından türer çünkü bu ana ekran bir pencere. Diğer yarısı ise XAML’de
     {
+        // Tüm projeden toplanan verileri burada biriktiriyoruz.
+        // Her gezgin kendi küçük listesini üretir. Sonra hepsi Global listede birleşir
+        public List<CodeNode> GlobalNodes = new List<CodeNode>();
+        public List<CodeEdge> GlobalEdges = new List<CodeEdge>();
         public MainWindow()
         {
             InitializeComponent(); // XAML’de çizdiğimiz her şey yüklenir (Butonlar, grid’ler).
 
-            // Program başlar başlamaz analizi yapması için buraya çağırıyoruz.
-            AnaliziBaslat();
+            // Artık analiz otomatik başlamıyor, kullanıcıdan klasör bekliyor.
         }
 
-        public void AnaliziBaslat()
+        // Butona tıklandığında çalışacak olan metot
+        private void btnAnaliz_Click(object sender, RoutedEventArgs e)
         {
-            // 1. Adım: Analiz edilecek metin(string).
-            // Pc henüz bunun C# kodu olduğunu bilmiyor metin olarak görüyor.
-            string kodMetni = @"
-                class Araba {
-                    void Calistir() {
-                        MotoruKontrolEt(); // Buradaki çağrıyı yakalayacağız!
-                    }
-                    void MotoruKontrolEt() { }
-                }";
+            // Klasör seçme penceresini açıyoruz
+            var dialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "C# Projenizin Klasörünü Seçin"
+            };
 
-            // 2. Adım: Ağaca dönüştürme
-            // ParseText komutu, düz metni alıp parçalar, her bir kelimeyi (class, void, {, }) analiz eder ve en son bunlar bir Sözdizimi Ağacı (Syntax Tree) yapısı haline getirilir.
-            SyntaxTree agac = CSharpSyntaxTree.ParseText(kodMetni);
-            // Şuan metin olan kod ilk kez Class → Method → Invocation şeklinde ağaç yapısına dönüştü.
+            if (dialog.ShowDialog() == true)
+            {
+                txtDurum.Text = "Analiz ediliyor, lütfen bekleyin...";
 
-            // --- SEMANTİK HAZIRLIK ---
-            // Eğer referans yazmazsak semantic model çalışmaz.
-            // Roslyn'e "Temel C# bilgilerini (object, string vb.) kullan diyoruz.
+                // Seçilen klasörün tam yolu Analiz metoduna gönderilir. Analiz burada başlar.
+                AnaliziBaslat(dialog.FolderName);
+
+                txtDurum.Text = "Analiz tamamlandı!";
+            }
+        }
+
+        // Sabit metin yerine klasör yolu alan yeni ana metodumuz.
+        public void AnaliziBaslat(string secilenKlasorYolu)
+        {
+            // Önceki bilgiler ile karışmaması için yeni analize başlamadan bellek temizlenir.
+            GlobalNodes.Clear();
+            GlobalEdges.Clear();
+
+            // .cs dosyalarını bulurken hata almamak için klasör var mı kontrolü.
+            if (!Directory.Exists(secilenKlasorYolu)) return;
+
+            // 1. ADIM: Klasördeki tüm .cs dosyalarını bul (Alt klasörler dahil).
+            // bin --> derlenmiş çıktı    obj --> geçici dosyalar. Gerçek kaynak kodlar olmadığından çıkarılır.
+            var dosyaYollari = Directory.GetFiles(secilenKlasorYolu, "*.cs", SearchOption.AllDirectories)
+            .Where(dosya => !dosya.Contains("\\bin\\") && !dosya.Contains("\\obj\\"))
+            .ToArray();
+
+            // Önceden tek dosya tek ağaç. Şimdi n dosya n ağaç
+            List<SyntaxTree> tumAgaclar = new List<SyntaxTree>();
+
+            // 2. ADIM: Her dosyayı oku ve Syntax Tree oluştur.
+            foreach (var dosya in dosyaYollari)
+            {
+                // Dosyayı oku ve ağaca ekle
+                string kodIcerigi = File.ReadAllText(dosya);
+                tumAgaclar.Add(CSharpSyntaxTree.ParseText(kodIcerigi));
+            }
+
+            // 3. ADIM: SEMANTİK BÜTÜNLÜK (Beyin Kurulumu)
+            // Tüm dosyaları tek bir Compilation (Derleme) içine atıyoruz.
+            // Böylece A dosyasındaki metot B dosyasındakini çağırınca Roslyn bunu tanıyacak.
             var referanslar = new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) };
 
             // Sanal bir derleme (proje) oluşturuyoruz. Çünkü Semantic Model ancak bir “proje” varsa oluşur.
             // Hayali projeyi oluşturup ona temel c# bilgi referansı ve analiz edilecek kod yapısı (ağaç şeklinde) verilir
-            var derleme = CSharpCompilation.Create("AnalizProjem")
+            var derleme = CSharpCompilation.Create("CokluDosyaAnalizi")
             .AddReferences(referanslar)
-            .AddSyntaxTrees(agac);
+            .AddSyntaxTrees(tumAgaclar);
 
-            // Artık sahte proje ile kod yapısına uygun anlam haritasını (Semantic Model) çıkartabiliriz. Semantic model = Syntax Tree + Referans --> Sahte proje
-            SemanticModel model = derleme.GetSemanticModel(agac);
+            // 4. ADIM: Her bir ağaç (dosya) için gezgini çalıştır.
+            foreach (var agac in tumAgaclar)
+            {
+                SemanticModel model = derleme.GetSemanticModel(agac);
+                var gezgin = new KodGezgini(model);
 
-            // 3. Adım: Kökü alma
-            // Her ağacın bir kökü vardır. kok değişkeni, kodun en dış katmanını (dosyanın kendisini) temsil eder. Tüm sınıflar ve metotlar bu kökün altındadır.
-            CompilationUnitSyntax kok = agac.GetCompilationUnitRoot();
+                gezgin.Visit(agac.GetRoot());
 
-            // 4. Adım: Gezgini çalıştırma
-            // Gezgini oluştururken içine "model"i (semantic modeli) de beyin nakli gibi gönderiyoruz.
-            var gezgin = new KodGezgini(model);
-            // Gezgini en tepeden başlattık ve her yeri dolaşacak. Eğer sadece belirli bir metodun içini merak etseydik, gezgin.Visit(metotNode) da diyebilirdik. Yani gezgin sadece verdiğimiz düğümden aşağısını tarar.
-            gezgin.Visit(kok);
+                // Gezginin o dosyada bulduklarını ana listeye aktar.
+                GlobalNodes.AddRange(gezgin.Nodes);
+                GlobalEdges.AddRange(gezgin.Edges);
+            }
 
-            // TEST: Kaç tane düğüm ve bağlantı bulduk?
-            MessageBox.Show($"Analiz Tamamlandı!\nToplam Düğüm: {gezgin.Nodes.Count}\nToplam Bağlantı: {gezgin.Edges.Count}");
+            MessageBox.Show($"Analiz Bitti!\nDosya Sayısı: {tumAgaclar.Count}\nToplam Düğüm: {GlobalNodes.Count}\nToplam Bağlantı: {GlobalEdges.Count}");
         }
     }
 
@@ -152,8 +185,8 @@ namespace Codography
             // Eğer gerçekten bir metotsa ve biz şuan bir metot içindeysek
             if (sembol != null && _currentMethodId != null)
             {
-                // Çağrılan metodun ID’si
-                string targetId = $"{sembol.ContainingSymbol.Name}.{sembol.Name}";
+                // Çağrılan metodun ID’si. (Aynı isimli sınıflar çakışmaz)
+                string targetId = $"{sembol.ContainingSymbol.ToDisplayString()}.{sembol.Name}";
 
                 // ÇİZGİYİ (EDGE) EKLE: Kaynak metodumdan hedef metoda bir çağrı var
                 // “Bu metot, şu metodu çağırıyor” bilgisi.

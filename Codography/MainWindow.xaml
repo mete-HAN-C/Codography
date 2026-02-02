@@ -7,6 +7,12 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="Codography İle Proje Analizi" FontSize="20" Margin="10" HorizontalAlignment="Center"/>
+            <Button x:Name="btnAnaliz" Content="Analiz Edilecek Klasörü Seç" 
+                Padding="20,10" Click="btnAnaliz_Click" Cursor="Hand"/>
+            <TextBlock x:Name="txtDurum" Text="Lütfen bir klasör seçin..." 
+                   Margin="10" Foreground="Gray" HorizontalAlignment="Center"/>
+        </StackPanel>
     </Grid>
 </Window>
