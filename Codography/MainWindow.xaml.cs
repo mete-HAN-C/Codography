@@ -6,6 +6,28 @@ using Microsoft.CodeAnalysis.CSharp.Syntax; // ClassDeclarationSyntax, MethodDec
 
 namespace Codography
 {
+    // Enum = seçenek listesi yani “Bu şey sadece şunlardan biri olabilir”.
+    // Bir düğüm (Node) ya (Class) sınıftır ya da (Method) metottur.
+    // Edge = İki düğüm arasındaki ilişkinin türüdür.
+    // Bir kenar (Edge) ya Metot → Metot çağrısı (Call) ya da Class → Class (Inheritance) tır.
+    public enum NodeType { Class, Method }
+    public enum EdgeType { Call, Inheritance }
+
+    // Her bir görsel objeyi temsil eder
+    public class CodeNode
+    {
+        public string Id { get; set; } // Genellikle "Namespace.Class.Method" şeklinde benzersiz olmalı. Aynı isimli yapıları ayırmak için Id kullanılır.
+        public string Name { get; set; } // Görselde yazılacak ve kullanıcıya gösterilecek isim “Calistir”, “MotoruKontrolEt”.
+        public NodeType Type { get; set; } // Bu düğüm "Class" mı yoksa Method mu? ayrımı için.
+    }
+
+    // İki obje arasındaki çizgiyi temsil eder
+    public class CodeEdge
+    {
+        public string SourceId { get; set; } // Çizginin başladığı yer ve Çağıran metot.
+        public string TargetId { get; set; } // Çizginin bittiği yer ve Çağrılan metot
+        public EdgeType Type { get; set; } // Çizginin anlamı "Call" mu "İnheritance" mı ?
+    }
     public partial class MainWindow : Window  // Pencere sınıfından türer çünkü bu ana ekran bir pencere. Diğer yarısı ise XAML’de
     {
         public MainWindow()
@@ -56,6 +78,9 @@ namespace Codography
             var gezgin = new KodGezgini(model);
             // Gezgini en tepeden başlattık ve her yeri dolaşacak. Eğer sadece belirli bir metodun içini merak etseydik, gezgin.Visit(metotNode) da diyebilirdik. Yani gezgin sadece verdiğimiz düğümden aşağısını tarar.
             gezgin.Visit(kok);
+
+            // TEST: Kaç tane düğüm ve bağlantı bulduk?
+            MessageBox.Show($"Analiz Tamamlandı!\nToplam Düğüm: {gezgin.Nodes.Count}\nToplam Bağlantı: {gezgin.Edges.Count}");
         }
     }
 
@@ -66,6 +91,16 @@ namespace Codography
         // Gezgin her yerde senantic model ile anlam sorabilsin diye bu değişkeni tanımladık.
         private readonly SemanticModel _model;
 
+        // Veri havuzlarımız
+        public List<CodeNode> Nodes { get; } = new List<CodeNode>(); // Nodes listesi Bulunan sınıf + metotları tutar.
+        public List<CodeEdge> Edges { get; } = new List<CodeEdge>(); // Metot çağrılarını tutar.
+
+        // Gezgin Class’a girince → _currentClassId set edilir.
+        // Gezgin Method’a girince → _currentMethodId set edilir.
+        // Gezgin Invocation görünce → “Bu çağrı, şu metodun içinden geldi”
+        private string _currentClassId;
+        private string _currentMethodId;
+
         // Kurucu Metot: Gezgin oluşturulurken modeli (senantic modeli) yani beynini ona teslim ediyoruz
         public KodGezgini(SemanticModel model)
         {
@@ -75,9 +110,16 @@ namespace Codography
         // Gezgin kodun içinde bir Sınıf (Class) gördüğü anda bu metot tetiklenir.
         public override void VisitClassDeclaration(ClassDeclarationSyntax node)
         {
-            // WPF'te Console.WriteLine yerine MessageBox kullanarak sonucu ekranda görebiliriz.
-            // Sınıfın ismini (örneğin: "Araba") verir.
-            MessageBox.Show("Bulunan Sınıf: " + node.Identifier.Text);
+            // “Şu an bu sınıftayız”
+            _currentClassId = node.Identifier.Text;
+
+            // Sınıfı bir düğüm olarak ekle
+            Nodes.Add(new CodeNode
+            {
+                Id = _currentClassId,
+                Name = node.Identifier.Text,
+                Type = NodeType.Class
+            });
 
             // Eğer bu satır yazılmazsa, gezgin sınıfın kapısından içeri girmez. İçerideki metotları da görmesi için "yoluna devam et" komutu vermen gerekir.
             base.VisitClassDeclaration(node);
@@ -86,9 +128,17 @@ namespace Codography
         // Gezgin kodun içinde bir Metot (Method) gördüğü anda bu metot tetiklenir.
         public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            // Metodun ismini (örneğin: "Calistir") verir.
-            // Identifier: Neden node.Name değil de node.Identifier? Çünkü Roslyn dünyasında her şeyin bir "kimliği" (Identifier) vardır. Bu sadece bir metin değil, dilin bir parçasıdır.
-            MessageBox.Show("İncelenen Metot Gövdesi: " + node.Identifier.Text);
+            // “Şu an bu metottayız”
+            _currentMethodId = $"{_currentClassId}.{node.Identifier.Text}";
+
+            // Metodu bir düğüm olarak ekle
+            Nodes.Add(new CodeNode
+            {
+                Id = _currentMethodId,
+                Name = node.Identifier.Text,
+                Type = NodeType.Method
+            });
+
             base.VisitMethodDeclaration(node);
         }
 
@@ -99,17 +149,21 @@ namespace Codography
             // Semantik modelden bu çağrının kimliğini soruyoruz. _model.GetSymbolInfo(node).Symbol : “Bu çağrı hangi metodu çağırıyor?” as IMethodSymbol : "Bu gerçekten bir metot mu?"
             var sembol = _model.GetSymbolInfo(node).Symbol as IMethodSymbol;
 
-            // Eğer gerçekten bir metotsa
-            if (sembol != null)
+            // Eğer gerçekten bir metotsa ve biz şuan bir metot içindeysek
+            if (sembol != null && _currentMethodId != null)
             {
-                // sembol.Name: Çağrılan metodun adı
-                // sembol.ContainingSymbol.Name: O metodun bulunduğu sınıf adı.
-                MessageBox.Show($"BAĞLANTI BULDUM!\n" +
-                $"Şu anki kod, {sembol.ContainingSymbol.Name} sınıfındaki " +
-                $"{sembol.Name} metodunu çağırıyor.");
-            }
-            // ÇIKTI : BAĞLANTI BULDUM! Şu anki kod, Araba sınıfındaki MotoruKontrolEt metodunu çağırıyor.
+                // Çağrılan metodun ID’si
+                string targetId = $"{sembol.ContainingSymbol.Name}.{sembol.Name}";
 
+                // ÇİZGİYİ (EDGE) EKLE: Kaynak metodumdan hedef metoda bir çağrı var
+                // “Bu metot, şu metodu çağırıyor” bilgisi.
+                Edges.Add(new CodeEdge
+                {
+                    SourceId = _currentMethodId,
+                    TargetId = targetId,
+                    Type = EdgeType.Call
+                });
+            }
             base.VisitInvocationExpression(node);
         }
     }
