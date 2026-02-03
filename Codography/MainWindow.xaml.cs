@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis; // Roslyn’in çekirdeği (Semantic, Symbol, Comp
 using Microsoft.CodeAnalysis.CSharp; // “Bu kod C# kodu” demek (Parse işlemi).
 using Microsoft.CodeAnalysis.CSharp.Syntax; // ClassDeclarationSyntax, MethodDeclarationSyntax, InvocationExpressionSyntax (kod parçalarının türleri için).
 using System.IO; // Artık kodu string olarak yazmıyoruz, DISK’ten okuyacağız.
+using System.Windows.Controls; // WPF için gerekli (Window, MessageBox). Konsol değil, pencere uygulaması olduğu için var.
 
 namespace Codography
 {
@@ -31,10 +32,8 @@ namespace Codography
     }
     public partial class MainWindow : Window  // Pencere sınıfından türer çünkü bu ana ekran bir pencere. Diğer yarısı ise XAML’de
     {
-        // Tüm projeden toplanan verileri burada biriktiriyoruz.
-        // Her gezgin kendi küçük listesini üretir. Sonra hepsi Global listede birleşir
-        public List<CodeNode> GlobalNodes = new List<CodeNode>();
-        public List<CodeEdge> GlobalEdges = new List<CodeEdge>();
+        // Analiz işlerini artık bu servis yapacak
+        private AnalysisService _analysisService = new AnalysisService();
         public MainWindow()
         {
             InitializeComponent(); // XAML’de çizdiğimiz her şey yüklenir (Butonlar, grid’ler).
@@ -53,84 +52,89 @@ namespace Codography
 
             if (dialog.ShowDialog() == true)
             {
-                string yol = dialog.FolderName;
-                txtDurum.Text = "Analiz ediliyor, lütfen bekleyin...";
-                btnAnaliz.IsEnabled = false; // Analiz sürerken butonu kilitleyelim
-
-                // Listeleri temizlemeyi analiz kısmından UI içine aldık.
-                GlobalNodes.Clear();
-                GlobalEdges.Clear();
-
-                // --- ASENKRON ÇALIŞTIRMA ---
-                // Task.Run ile analiz işini arka plana atıyoruz, UI donmaması için.
-                await Task.Run(() =>
+                try
                 {
-                    AnaliziBaslat(yol);
-                });
 
-                btnAnaliz.IsEnabled = true; // // Analiz sonrası butonu açalım.
+                    txtDurum.Text = "Analiz ediliyor, lütfen bekleyin...";
+                    pbAnaliz.IsIndeterminate = true; // Yükleme animasyonunu başlat (ProgressBar)
+                    btnAnaliz.IsEnabled = false; // Analiz sürerken butonu kilitleyelim
 
-                txtDurum.Text = "Analiz tamamlandı!";
-                
+                    // Seçilen klasörün tam yolu
+                    string yol = dialog.FolderName;
+
+                    // --- ASENKRON ÇALIŞTIRMA ---
+                    // Task.Run ile analiz işini arka plana atıyoruz, UI donmaması için.
+                    // Seçilen klasörün tam yolu Analiz metoduna gönderilir. Analiz burada başlar.
+                    await Task.Run(() =>
+                    {
+                        _analysisService.AnaliziBaslat(yol);
+                    });
+
+                    // TreeView'ı hiyerarşik olarak doldur
+                    PopulateTreeView();
+
+                    txtDurum.Text = "Analiz başarıyla tamamlandı!";
+
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Analiz sırasında bir hata oluştu: " + ex.Message);
+                }
+                finally
+                {
+                    // Analiz bitince her şey eski haline dönüyor
+                    pbAnaliz.IsIndeterminate = false;
+                    btnAnaliz.IsEnabled = true;
+                }
             }
         }
 
-        // Sabit metin yerine klasör yolu alan yeni ana metodumuz.
-        public void AnaliziBaslat(string secilenKlasorYolu)
+        // TreeView ile kullanıcıya ilk gerçek görselleştirme
+        // Analiz sonucu:
+        // Sınıflar → kök düğüm
+        // Metotlar → alt düğüm şeklinde gösteren metot
+        private void PopulateTreeView()
         {
+            trvProje.Items.Clear();
 
-            // .cs dosyalarını bulurken hata almamak için klasör var mı kontrolü.
-            if (!Directory.Exists(secilenKlasorYolu)) return;
+            // 1. Önce sınıfları bul ve kök düğüm olarak ekle
+            // Sınıfları ID'ye göre tekilleştiriyoruz. Bu sayede aynı sınıf tekrar gösterilmez (DistictBy)
+            var classes = _analysisService.GlobalNodes
+                .Where(n => n.Type == NodeType.Class)
+                .GroupBy(n => n.Id)
+                .Select(g => g.First())
+                .ToList();
 
-            // 1. ADIM: Klasördeki tüm .cs dosyalarını bul (Alt klasörler dahil).
-            // bin --> derlenmiş çıktı    obj --> geçici dosyalar. Gerçek kaynak kodlar olmadığından çıkarılır.
-            var dosyaYollari = Directory.GetFiles(secilenKlasorYolu, "*.cs", SearchOption.AllDirectories)
-            .Where(dosya => !dosya.Contains("\\bin\\") && !dosya.Contains("\\obj\\"))
-            .ToArray();
-
-            // Önceden tek dosya tek ağaç. Şimdi n dosya n ağaç
-            List<SyntaxTree> tumAgaclar = new List<SyntaxTree>();
-
-            // 2. ADIM: Her dosyayı oku ve Syntax Tree oluştur.
-            foreach (var dosya in dosyaYollari)
+            foreach (var cls in classes)
             {
-                // Dosyayı oku ve ağaca ekle
-                string kodIcerigi = File.ReadAllText(dosya);
-                tumAgaclar.Add(CSharpSyntaxTree.ParseText(kodIcerigi));
+                TreeViewItem classItem = new TreeViewItem
+                {
+                    Header = $"[C] {cls.Name}", // UI tarafında bunun sınıf olduğunu net göstermek için [C]
+                    Tag = cls.Id, // İleride tıklayınca detay görmek için Id'yi sakla
+                    IsExpanded = false // Başlangıçta varsayılan olarak kapalı kalsın, daha temiz durur
+                };
+
+                // 2. Bu sınıfa ait metotları bul ve altına ekle
+                // Metotları bulurken de tekilleştirme yapıyoruz. Bu sayede aynı sınıf tekrar gösterilmez
+                var methods = _analysisService.GlobalNodes
+                    .Where(n => n.Type == NodeType.Method && n.Id.StartsWith(cls.Id))
+                    .GroupBy(n => n.Id)
+                    .Select(g => g.First())
+                    .ToList();
+
+                foreach (var met in methods)
+                {
+                    classItem.Items.Add(
+                        new TreeViewItem
+                        { 
+                            Header = $"[M] {met.Name}", // UI tarafında bunun metot olduğunu net göstermek için [M]
+                            Tag = met.Id // // İleride tıklayınca detay görmek için Id'yi sakla
+                        }
+                    );
+                }
+
+                trvProje.Items.Add(classItem); // En son sınıfı TreeView’a ekleme
             }
-
-            // 3. ADIM: SEMANTİK BÜTÜNLÜK (Beyin Kurulumu)
-            // Tüm dosyaları tek bir Compilation (Derleme) içine atıyoruz.
-            // Böylece A dosyasındaki metot B dosyasındakini çağırınca Roslyn bunu tanıyacak.
-            var referanslar = new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) };
-
-            // Sanal bir derleme (proje) oluşturuyoruz. Çünkü Semantic Model ancak bir “proje” varsa oluşur.
-            // Hayali projeyi oluşturup ona temel c# bilgi referansı ve analiz edilecek kod yapısı (ağaç şeklinde) verilir
-            var derleme = CSharpCompilation.Create("CokluDosyaAnalizi")
-            .AddReferences(referanslar)
-            .AddSyntaxTrees(tumAgaclar);
-
-            // 4. ADIM: Her bir ağaç (dosya) için gezgini çalıştır.
-            foreach (var agac in tumAgaclar)
-            {
-                SemanticModel model = derleme.GetSemanticModel(agac);
-                var gezgin = new KodGezgini(model);
-
-                gezgin.Visit(agac.GetRoot());
-
-                // Gezginin o dosyada bulduklarını ana listeye aktar.
-                GlobalNodes.AddRange(gezgin.Nodes);
-                GlobalEdges.AddRange(gezgin.Edges);
-            }
-
-            // Arka plan – UI ayrımı için UI işlemi bilinçli şekilde UI thread’e alındı
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                MessageBox.Show($"Analiz Bitti!\n" +
-                                $"Dosya Sayısı: {tumAgaclar.Count}\n" +
-                                $"Toplam Düğüm: {GlobalNodes.Count}\n" +
-                                $"Toplam Bağlantı: {GlobalEdges.Count}");
-            });
         }
     }
 

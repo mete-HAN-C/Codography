@@ -3,16 +3,42 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Codography"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Codography - Proje Analiz Aracı" Height="600" Width="900">
     <Grid>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock Text="Codography İle Proje Analizi" FontSize="20" Margin="10" HorizontalAlignment="Center"/>
-            <Button x:Name="btnAnaliz" Content="Analiz Edilecek Klasörü Seç" 
-                Padding="20,10" Click="btnAnaliz_Click" Cursor="Hand"/>
-            <TextBlock x:Name="txtDurum" Text="Lütfen bir klasör seçin..." 
-                   Margin="10" Foreground="Gray" HorizontalAlignment="Center"/>
-        </StackPanel>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Column="0" Background="#F5F5F5">
+            <TextBlock DockPanel.Dock="Top" Text="Proje Gezgini" FontSize="16" FontWeight="Bold" Margin="10"/>
+            <TreeView x:Name="trvProje" Margin="5" Background="White" BorderBrush="#DDD"/>
+        </DockPanel>
+
+        <Grid Grid.Column="1" Background="White">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="Codography Analiz Paneli" FontSize="22" FontWeight="Thin" Margin="10" HorizontalAlignment="Center"/>
+
+                <Button x:Name="btnAnaliz" Content="Analiz Edilecek Klasörü Seç" 
+                        Padding="30,15" Click="btnAnaliz_Click" Cursor="Hand"
+                        Background="#007ACC" Foreground="White" BorderThickness="0">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="5"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <ProgressBar x:Name="pbAnaliz" Height="10" Width="300" Margin="0,20,0,0" IsIndeterminate="False"/>
+
+                <TextBlock x:Name="txtDurum" Text="Analiz için bir C# proje klasörü seçin..." 
+                           Margin="10" Foreground="DimGray" HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <StatusBar VerticalAlignment="Bottom" Background="#007ACC" Foreground="White">
+                <StatusBarItem Content="Hazır"/>
+            </StatusBar>
+        </Grid>
     </Grid>
 </Window>
