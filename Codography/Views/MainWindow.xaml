@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:Codography.Models"
         mc:Ignorable="d"
         Title="Codography - Proje Analiz Aracı" Height="600" Width="900">
     <Grid>
@@ -13,7 +14,25 @@
 
         <DockPanel Grid.Column="0" Background="#F5F5F5">
             <TextBlock DockPanel.Dock="Top" Text="Proje Gezgini" FontSize="16" FontWeight="Bold" Margin="10"/>
-            <TreeView x:Name="trvProje" Margin="5" Background="White" BorderBrush="#DDD"/>
+
+            <TreeView x:Name="trvProje" ItemsSource="{Binding RootNodes}" Margin="5" Background="White" BorderBrush="#DDD">
+                <TreeView.Resources>
+                    <HierarchicalDataTemplate DataType="{x:Type models:CodeNode}" ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="TypeIcon" Text="[M] " FontWeight="Bold" Foreground="MediumPurple"/>
+
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <HierarchicalDataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Type}" Value="Class">
+                                <Setter TargetName="TypeIcon" Property="Text" Value="[C] "/>
+                                <Setter TargetName="TypeIcon" Property="Foreground" Value="#007ACC"/>
+                            </DataTrigger>
+                        </HierarchicalDataTemplate.Triggers>
+                    </HierarchicalDataTemplate>
+                </TreeView.Resources>
+            </TreeView>
         </DockPanel>
 
         <Grid Grid.Column="1" Background="White">
@@ -21,6 +40,7 @@
                 <TextBlock Text="Codography Analiz Paneli" FontSize="22" FontWeight="Thin" Margin="10" HorizontalAlignment="Center"/>
 
                 <Button x:Name="btnAnaliz" Content="Analiz Edilecek Klasörü Seç" 
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
                         Padding="30,15" Click="btnAnaliz_Click" Cursor="Hand"
                         Background="#007ACC" Foreground="White" BorderThickness="0">
                     <Button.Resources>
@@ -30,14 +50,16 @@
                     </Button.Resources>
                 </Button>
 
-                <ProgressBar x:Name="pbAnaliz" Height="10" Width="300" Margin="0,20,0,0" IsIndeterminate="False"/>
+                <ProgressBar x:Name="pbAnaliz" Height="10" Width="300" Margin="0,20,0,0" 
+                             IsIndeterminate="{Binding IsBusy}"
+                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                <TextBlock x:Name="txtDurum" Text="Analiz için bir C# proje klasörü seçin..." 
+                <TextBlock x:Name="txtDurum" Text="{Binding StatusMessage}" 
                            Margin="10" Foreground="DimGray" HorizontalAlignment="Center"/>
             </StackPanel>
 
             <StatusBar VerticalAlignment="Bottom" Background="#007ACC" Foreground="White">
-                <StatusBarItem Content="Hazır"/>
+                <StatusBarItem Content="{Binding StatusMessage}"/>
             </StatusBar>
         </Grid>
     </Grid>

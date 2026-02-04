@@ -1,0 +1,91 @@
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using Codography.Models;
+using Codography.Services;
+
+// Eskiden MainWindow içinde bulunan tüm analiz yönetimi ve UI güncelleme mantığı MainViewModel sınıfına taşındı. ObservableCollection ve INotifyPropertyChanged kullanımıyla manuel UI güncellemeleri bırakılıp otomatik "Binding" (bağlama) sistemine geçildi.
+namespace Codography.ViewModels
+{
+    public class MainViewModel : INotifyPropertyChanged
+    {
+        private readonly AnalysisService _analysisService;
+
+        // Eskiden ProgressBar kontrolü (pbAnaliz.IsIndeterminate) ve durum mesajları (txtDurum.Text) doğrudan MainWindow.xaml.cs dosyasında yönetiliyordu.
+        // Artık bunu MainViewModel içerisine taşıdık. IsBusy özelliği ProgressBar'ı, StatusMessage ise durum metnini temsil ediyor. Bu sayede arayüz (UI) sadece veriyi göstermekle yükümlü hale geldi.
+        private string _statusMessage = "Analiz için bir C# proje klasörü seçin...";
+        private bool _isBusy;
+
+        // UI'daki TreeView bu listeye bağlanacak (Binding)
+        // Artık, koleksiyona bir eleman eklendiğinde veya silindiğinde TreeView bunu otomatik olarak algılayıp kendini günceller. Ayrıca INotifyPropertyChanged arayüzü sayesinde IsBusy gibi özellikler değiştiğinde UI anında haberdar olur.
+        public ObservableCollection<CodeNode> RootNodes { get; } = new ObservableCollection<CodeNode>();
+
+        public MainViewModel()
+        {
+            _analysisService = new AnalysisService();
+        }
+
+        // Analiz sırasında ProgressBar'ı ve butonu kontrol etmek için
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set { _isBusy = value; OnPropertyChanged(); }
+        }
+
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set { _statusMessage = value; OnPropertyChanged(); }
+        }
+
+        // Bu metot MainWindow.xaml.cs'den çağrılacak
+        // Eskiden AnalysisService.AnaliziBaslat(yol) metodu çağrılıyordu sonuçlar servisin kendi içindeki genel listelerde saklanıyordu.
+        // Artık StartAnalysisAsync metodu, servis katmanından dönen ProjectAnalysisResult paketini alıyor ve içindeki hiyerarşik Nodes listesini doğrudan RootNodes koleksiyonuna aktarıyor.
+        public async Task StartAnalysisAsync(string folderPath)
+        {
+            try
+            {
+                // 1. İşlem başlangıcı hazırlıkları
+                // Analiz sırasında buton kilitlenir ve ProgressBar görünür.
+                IsBusy = true;
+
+                // StatusMessage güncellenerek ekranda "Analiz ediliyor..." yazısı çıkar.
+                StatusMessage = "Analiz ediliyor, lütfen bekleyin...";
+                RootNodes.Clear();
+
+                // 2. Arka plan işlemi
+                // Analiz işi AnalysisService.cs sınıfına devredilir. O sınıftaki AnaliziBaslat metodu dosya yolu gönderilerek tetiklenir
+                var result = await Task.Run(() => _analysisService.AnaliziBaslat(folderPath));
+
+                // 3. Sonuçları UI listesine aktarma
+                // (Bu kısım UI thread'inde çalışır çünkü ObservableCollection UI ile bağlıdır)
+                foreach (var node in result.Nodes)
+                {
+                    RootNodes.Add(node);
+                }
+
+                StatusMessage = $"Analiz başarıyla tamamlandı! {result.Nodes.Count} sınıf bulundu.";
+            }
+            catch (System.Exception ex)
+            {
+                // 4. Hata yönetimi
+                StatusMessage = $"Hata oluştu: {ex.Message}";
+                // Burada loglama yapabilirsin (Örn: NLog, Serilog)
+            }
+            finally
+            {
+                // 5. İşlem ne olursa olsun (başarı veya hata) meşguliyet modundan çık
+                IsBusy = false;
+            }
+        }
+
+        // Property değiştiğinde UI'ı haberdar eden mekanizma
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+    }
+}
