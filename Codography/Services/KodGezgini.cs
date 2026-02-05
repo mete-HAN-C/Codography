@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Text;
-
 // Eskiden KodGezgini, MainWindow.xaml.cs dosyasının içinde bir yardımcı sınıftı. Şimdi ise Services klasörü altında bağımsız bir dosya olarak yer alıyor.
 namespace Codography.Services
 {
@@ -21,8 +20,8 @@ namespace Codography.Services
         // Gezgin Class’a girince → _currentClassId set edilir.
         // Gezgin Method’a girince → _currentMethodId set edilir.
         // Gezgin Invocation görünce → “Bu çağrı, şu metodun içinden geldi”
-        private string _currentClassId;
-        private string _currentMethodId;
+        private string _currentClassId; // O an içinde bulunulan sınıfın kimliği
+        private string _currentMethodId; // O an içinde bulunulan metodun kimliği
 
         // Kurucu Metot: Gezgin oluşturulurken modeli (senantic modeli) yani beynini ona teslim ediyoruz
         public KodGezgini(SemanticModel model)
@@ -79,8 +78,11 @@ namespace Codography.Services
         {
             // Eğer sınıf dışında (örneğin namespace seviyesinde - nadir de olsa) bir metot varsa hata almamak için kontrol
             if (string.IsNullOrEmpty(_currentClassId)) return;
-            // “Şu an bu metottayız”
-            _currentMethodId = $"{_currentClassId}.{node.Identifier.Text}";
+
+            // O anki metodun tam adını sakla (Örn: Proje.Helpers.Hesapla)
+            // Sembol üzerinden tam ad alınarak daha güvenli hale getirildi.
+            var methodSymbol = _model.GetDeclaredSymbol(node);
+            _currentMethodId = methodSymbol?.ToDisplayString() ?? $"{_currentClassId}.{node.Identifier.Text}";
 
             // Metodu bir düğüm olarak ekle
             Nodes.Add(new CodeNode
@@ -90,9 +92,10 @@ namespace Codography.Services
                 Type = NodeType.Method
             });
 
+            // Metodun gövdesine gir ve içindeki çağrıları tara
             base.VisitMethodDeclaration(node);
 
-            // Metottan çıkarken temizle
+            // Metottan çıkarken "şu an bu metottayım" bilgisini temizle.
             _currentMethodId = null;
         }
 
@@ -106,15 +109,18 @@ namespace Codography.Services
             // Eğer gerçekten bir metotsa ve biz şuan bir metot içindeysek
             if (sembol != null && _currentMethodId != null)
             {
-                // Çağrılan metodun ID’si. (Aynı isimli sınıflar ve metotlar çakışmaz)
-                string targetId = $"{sembol.ContainingSymbol.ToDisplayString()}.{sembol.Name}";
+                // Sembol üzerinden çağrılan metodun tam kimliği (Hedef) alınıyor
+                string targetId = sembol.ToDisplayString();
+
+                // Kaynak ve Hedef ID karşılaştırılarak özyineleme kontrolü yapılıyor
+                bool isRecursive = _currentMethodId == targetId;
 
                 // ÇİZGİYİ (EDGE) EKLE: Kaynak metodumdan hedef metoda bir çağrı var
                 // “Bu metot, şu metodu çağırıyor” bilgisi.
                 Edges.Add(new CodeEdge
                 {
-                    SourceId = _currentMethodId,
-                    TargetId = targetId,
+                    SourceId = _currentMethodId, // Kim çağırdı?
+                    TargetId = targetId, // // Kimi çağırdı?
                     Type = EdgeType.Call
                 });
             }
