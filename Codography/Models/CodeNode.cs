@@ -22,5 +22,12 @@ namespace Codography.Models
         // Children listesi sayesinde, TreeView'a sadece en üstteki sınıfları vermek yeterli olur. WPF, listenin içindeki bu Children özelliğine bakarak alt dalları (metotları) otomatik olarak ekranda oluşturabilir.
         // Özetle: Bu satır, verilerini karmaşık bir tablodan ziyade, gerçek bir dosya-klasör yapısı gibi düzenli tutmamızı sağlıyor.
         public List<CodeNode> Children { get; set; } = new List<CodeNode>();
+
+        // Metodun dönüş tipini tutar. (Örn: void, int, string, Task, List<int> gibi). Eğer özel olarak set edilmezse varsayılan olarak "void" kabul edilir
+        public string ReturnType { get; set; } = "void";
+
+        // Metodun aldığı parametreleri tutar. Her parametre string olarak saklanır. (Örn: "string name", "int age", "Motor motor")
+        // Liste olarak tutulmasının sebebi, bir metodun birden fazla parametresi olabilmesidir
+        public List<string> Parameters { get; set; } = new List<string>();
     }
 }

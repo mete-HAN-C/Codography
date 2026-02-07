@@ -176,13 +176,36 @@ namespace Codography.Services
             var methodSymbol = _model.GetDeclaredSymbol(node);
             _currentMethodId = methodSymbol?.ToDisplayString() ?? $"{_currentClassId}.{node.Identifier.Text}";
 
-            // Metodu bir düğüm olarak ekle
-            Nodes.Add(new CodeNode
+            // Metodu bir düğüm (node) olarak temsil etmek için yeni bir CodeNode oluşturulur
+            var newNode = new CodeNode
             {
+                // Metoda ait benzersiz kimlik bilgisi. Genellikle sınıf adı + metot adı gibi bir yapıdan oluşur
                 Id = _currentMethodId,
+
+                // Metodun kaynak koddaki adı alınır
                 Name = node.Identifier.Text,
-                Type = NodeType.Method
-            });
+
+                // Bu düğümün bir metodu temsil ettiği belirtilir
+                Type = NodeType.Method,
+
+                // SEMANTİK ANALİZ: Metodun dönüş tipi alınır. (Örn: void, int, string, Task<bool>).
+                // Eğer herhangi bir sebeple dönüş tipi alınamazsa varsayılan olarak "void" atanır
+                ReturnType = methodSymbol?.ReturnType?.ToDisplayString() ?? "void"
+            };
+
+            // SEMANTİK ANALİZ: Metodun aldığı parametreler alınır
+            if (methodSymbol != null)
+            {
+                // Metodun tüm parametreleri tek tek dolaşılır
+                foreach (var parameter in methodSymbol.Parameters)
+                {
+                    // Parametrenin tipi ve adı birleştirilerek string olarak saklanır. (Örn: "string folderPath", "int retryCount", "Motor motor")
+                    newNode.Parameters.Add($"{parameter.Type.ToDisplayString()} {parameter.Name}");
+                }
+            }
+
+            // Oluşturulan metot düğümü, tüm düğümlerin tutulduğu koleksiyona eklenir. Böylece bu metot analiz ağacında (graph) yerini alır
+            Nodes.Add(newNode);
 
             // Metodun gövdesine gir ve içindeki çağrıları tara
             base.VisitMethodDeclaration(node);

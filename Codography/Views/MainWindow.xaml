@@ -22,12 +22,21 @@
                             <TextBlock x:Name="TypeIcon" Text="[M] " FontWeight="Bold" Foreground="MediumPurple"/>
 
                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+
+                            <StackPanel x:Name="MethodDetails" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
+                                <TextBlock Text="{Binding ReturnType, StringFormat=' : {0}'}" 
+                       Foreground="#28A745" FontSize="11" FontStyle="Italic"/>
+
+                                <TextBlock Text="{Binding Parameters.Count, StringFormat=' ({0} Parametre)'}" 
+                       Foreground="DimGray" FontSize="10" Margin="5,0,0,0"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <HierarchicalDataTemplate.Triggers>
                             <DataTrigger Binding="{Binding Type}" Value="Class">
                                 <Setter TargetName="TypeIcon" Property="Text" Value="[C] "/>
                                 <Setter TargetName="TypeIcon" Property="Foreground" Value="#007ACC"/>
+                                <Setter TargetName="MethodDetails" Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </HierarchicalDataTemplate.Triggers>
                     </HierarchicalDataTemplate>
