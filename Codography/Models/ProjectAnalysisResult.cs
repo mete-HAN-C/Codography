@@ -9,6 +9,12 @@ namespace Codography.Models
     /// </summary>
     public class ProjectAnalysisResult
     {
+        // Analiz edilen projenin adını tutar. Eğer kullanıcı özel bir isim vermezse varsayılan olarak "Adsız Proje" atanır
+        public string ProjectName { get; set; } = "Adsız Proje";
+
+        // Analizin yapıldığı tarih ve saati tutar. Nesne oluşturulduğu anda otomatik olarak o anki tarih/saat atanır. Daha sonra analiz ne zaman yapıldı diye göstermek için kullanılır
+        public DateTime AnalysisDate { get; set; } = DateTime.Now;
+
         // Analiz edilen tüm sınıflar ve metotlar (Hiyerarşik yapıda)
         public List<CodeNode> Nodes { get; set; } = new List<CodeNode>();
 

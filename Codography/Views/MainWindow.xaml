@@ -39,9 +39,10 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <TextBlock Text="Codography Analiz Paneli" FontSize="22" FontWeight="Thin" Margin="10" HorizontalAlignment="Center"/>
 
-                <Button x:Name="btnAnaliz" Content="Analiz Edilecek Klasörü Seç" 
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10">
+                    <Button x:Name="btnAnaliz" Content="Yeni Analiz Başlat" 
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                        Padding="30,15" Click="btnAnaliz_Click" Cursor="Hand"
+                        Padding="20,10" Click="btnAnaliz_Click" Cursor="Hand"
                         Background="#007ACC" Foreground="White" BorderThickness="0">
                     <Button.Resources>
                         <Style TargetType="Border">
@@ -49,6 +50,29 @@
                         </Style>
                     </Button.Resources>
                 </Button>
+
+                <Button x:Name="btnKaydet" Content="Analizi Kaydet" 
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                    Padding="20,10" Click="btnKaydet_Click" Margin="10,0" Cursor="Hand"
+                    Background="#28A745" Foreground="White" BorderThickness="0">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="5"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+
+                <Button x:Name="btnYukle" Content="Kayıttan Yükle" 
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                    Padding="20,10" Click="btnYukle_Click" Cursor="Hand"
+                    Background="#6C757D" Foreground="White" BorderThickness="0">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="5"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+                </StackPanel>
 
                 <ProgressBar x:Name="pbAnaliz" Height="10" Width="300" Margin="0,20,0,0" 
                              IsIndeterminate="{Binding IsBusy}"

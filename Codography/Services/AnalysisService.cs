@@ -8,6 +8,7 @@ using System.Runtime.ConstrainedExecution;
 using System.Security.Claims;
 using System.Windows.Controls;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Text.Json;
 
 namespace Codography.Services
 {
@@ -98,6 +99,32 @@ namespace Codography.Services
             // Ana listeyi (result.Nodes) tamamen siliyoruz ve yerine sadece Sınıfları koyuyoruz.
             // Ana listede sadece sınıflar kalsın
             result.Nodes = classes.Cast<CodeNode>().ToList();
+        }
+
+        // Verilen analiz sonucunu JSON formatına çevirip belirtilen dosya yoluna kaydeder
+        public void SaveResultToJson(ProjectAnalysisResult result, string filePath)
+        {
+            // JSON yazım ayarları belirlenir. WriteIndented = true sayesinde JSON daha okunabilir (satır satır, girintili) olur
+            var options = new JsonSerializerOptions { WriteIndented = true };
+
+            // Analiz sonucu nesnesi JSON metnine dönüştürülür
+            string jsonString = JsonSerializer.Serialize(result, options);
+
+            // Oluşturulan JSON metni belirtilen dosya yolundaki dosyaya yazılır. Dosya yoksa oluşturulur, varsa üzerine yazılır
+            File.WriteAllText(filePath, jsonString);
+        }
+
+        // Daha önce kaydedilmiş olan JSON dosyasını okuyup analiz sonucunu geri yükler
+        public ProjectAnalysisResult LoadResultFromJson(string filePath)
+        {
+            // Dosya gerçekten var mı kontrol edilir. Yoksa null döndürülerek yükleme işlemi sonlandırılır
+            if (!File.Exists(filePath)) return null;
+
+            // JSON dosyasının içeriği metin olarak okunur
+            string jsonString = File.ReadAllText(filePath);
+
+            // Okunan JSON metni tekrar ProjectAnalysisResult nesnesine dönüştürülür
+            return JsonSerializer.Deserialize<ProjectAnalysisResult>(jsonString);
         }
     }
 }

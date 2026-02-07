@@ -43,5 +43,44 @@ namespace Codography
                 await _viewModel.StartAnalysisAsync(dialog.FolderName);
             }
         }
+        // Mevcut analiz sonucunu JSON dosyası olarak kaydetmeyi sağlayan metot.
+        private void btnKaydet_Click(object sender, RoutedEventArgs e)
+        {
+            // Kullanıcıya dosya kaydetme penceresi açılır.
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                // Sadece .json uzantılı dosyaların seçilmesine izin verilir.
+                Filter = "JSON Dosyası (*.json)|*.json",
+
+                // Varsayılan dosya adı belirlenir
+                FileName = "analiz_sonucu.json"
+            };
+
+            // Kullanıcı Kaydet butonuna basarsa (iptal edilmezse).
+            if (dialog.ShowDialog() == true)
+            {
+                // ViewModel içerisindeki kaydetme metodu çağrılır.
+                // Analiz sonucu, kullanıcının seçtiği dosya yoluna JSON formatında yazılır.
+                _viewModel.SaveCurrentAnalysis(dialog.FileName);
+            }
+        }
+        // Daha önce kaydedilmiş olan analiz sonucunu JSON dosyasından yükleyen metot.
+        private async void btnYukle_Click(object sender, RoutedEventArgs e)
+        {
+            // Kullanıcıya dosya seçme penceresi açılır.
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                // Sadece .json uzantılı dosyaların seçilmesine izin verilir.
+                Filter = "JSON Dosyası (*.json)|*.json"
+            };
+
+            // Kullanıcı bir dosya seçip Aç butonuna basarsa.
+            if (dialog.ShowDialog() == true)
+            {
+                // ViewModel içerisindeki asenkron yükleme metodu çağrılır.
+                // Seçilen JSON dosyası okunur ve analiz verileri uygulamaya geri yüklenir.
+                await _viewModel.LoadFromSavedFileAsync(dialog.FileName);
+            }
+        }
     }
 }

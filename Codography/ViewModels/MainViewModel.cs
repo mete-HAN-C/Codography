@@ -81,6 +81,74 @@ namespace Codography.ViewModels
             }
         }
 
+        // Daha önce JSON olarak kaydedilmiş analiz sonucunu asenkron şekilde yükler
+        public async Task LoadFromSavedFileAsync(string filePath)
+        {
+            try
+            {
+                // UI'da yükleme sırasında kullanıcıyı bilgilendirmek için
+                // işlem başladığında IsBusy true yapılır (örneğin loading spinner göstermek için)
+                IsBusy = true;
+
+                // Durum mesajı güncellenir
+                StatusMessage = "Kayıtlı analiz yükleniyor...";
+
+                // Dosya okuma ve JSON parse işlemi arka planda çalıştırılır. Böylece UI thread bloke edilmez
+                var result = await Task.Run(() => _analysisService.LoadResultFromJson(filePath));
+
+                // JSON içeriği başarıyla okunmuşsa
+                if (result != null)
+                {
+                    // Mevcut analizdeki tüm kök node'lar temizlenir. Böylece eski analiz verileri kalmaz
+                    RootNodes.Clear();
+
+                    // Yüklenen analizdeki node'lar tek tek ViewModel koleksiyonuna eklenir
+                    // ObservableCollection olduğu için UI otomatik olarak güncellenir
+                    foreach (var node in result.Nodes)
+                    {
+                        RootNodes.Add(node);
+                    }
+
+                    // Kullanıcıya başarılı yükleme bilgisi gösterilir
+                    StatusMessage = $"{result.ProjectName} (Analiz Tarihi: {result.AnalysisDate}) başarıyla yüklendi.";
+                }
+            }
+            catch (Exception ex)
+            {
+
+                // Dosya bulunamazsa, JSON bozuksa veya parse hatası oluşursa. Hata mesajı kullanıcıya gösterilir
+                StatusMessage = $"Yükleme hatası: {ex.Message}";
+            }
+            finally
+            {
+                // Hata olsun ya da olmasın işlem sonunda IsBusy false yapılır. Böylece UI tekrar etkileşime açılır
+                IsBusy = false;
+            }
+        }
+
+        // Mevcut analiz sonucunu JSON dosyası olarak diske kaydeder
+        public void SaveCurrentAnalysis(string filePath)
+        {
+            // Şu anki analiz verileri tek bir nesne altında toplanır. Bu nesne JSON dosyasına dönüştürülerek kaydedilecektir
+            var resultToSave = new ProjectAnalysisResult
+            {
+                // Kaydedilecek analiz için bir proje adı atanır
+                ProjectName = "Son Analiz",
+
+                // UI'da gösterilen mevcut kök node'lar yeni bir listeye kopyalanır. Böylece referans problemleri yaşanmaz
+                Nodes = new List<CodeNode>(RootNodes)
+
+                // Not: Eğer Edges (ilişkiler) verisi de ViewModel'de tutuluyorsa, ProjectAnalysisResult içine eklenip burada da set edilebilir
+
+            };
+
+            // Analiz sonucu belirtilen dosya yoluna JSON formatında yazılır
+            _analysisService.SaveResultToJson(resultToSave, filePath);
+
+            // Kullanıcıya kaydetme işleminin başarılı olduğu bilgisi gösterilir
+            StatusMessage = "Analiz başarıyla diske kaydedildi.";
+        }
+
         // Property değiştiğinde UI'ı haberdar eden mekanizma
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string name = null)
