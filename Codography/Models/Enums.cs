@@ -19,6 +19,11 @@ namespace Codography.Models
         Call,
 
         // Kalıtım ilişkisi (Class A -> Class B)
-        Inheritance
+        Inheritance,
+
+        // Bir sınıfın başka bir sınıfa ait alanına veya property'sine eriştiğini belirtir
+        // Bu erişim sadece okuma (read) veya değer değiştirme (write) olabilir. (Örn: motor.Hiz okumak (read), motor.Hiz = 100 atamak (write))
+        // IsWriteAccess alanı ile okuma mı yazma mı olduğu ayrıca ayırt edilebilir
+        Access
     }
 }

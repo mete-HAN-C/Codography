@@ -16,5 +16,10 @@ namespace Codography.Models
 
         // İlişkinin türü (Metot Çağrısı mı yoksa Kalıtım mı?)
         public EdgeType Type { get; set; }
+
+        // İlişkinin yazma (write) erişimi içerip içermediğini belirtir. Eğer true ise, kaynak düğüm hedef düğüm üzerinde veri değiştiriyor demektir
+        // Örn: bir field'a değer atama, property set etme gibi durumlar
+        // Eğer false ise, sadece okuma yapılıyor demektir
+        public bool IsWriteAccess { get; set; }
     }
 }

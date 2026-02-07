@@ -241,5 +241,47 @@ namespace Codography.Services
             }
             base.VisitInvocationExpression(node);
         }
+
+        // Metot ve sınıf içindeki değişken erişimlerini (read / write) yakalamak için kullanılır
+        public override void VisitIdentifierName(IdentifierNameSyntax node)
+        {
+            // Eğer o an bir metodun içindeysek ve bir sınıf Id'miz varsa işleme başla. Çünkü değişken erişimleri metot gövdesi içinde anlamlıdır
+            if (!string.IsNullOrEmpty(_currentMethodId) && !string.IsNullOrEmpty(_currentClassId))
+            {
+                // Semantik modelden bu ismin neye karşılık geldiğini soruyoruz. Bu sayede identifier'ın: Field mı Property mi olduğu anlaşılır
+                var symbol = _model.GetSymbolInfo(node).Symbol;
+
+                // Eğer erişilen şey bir Property (Özellik) veya Field (Alan) ise Metot çağrıları ve local değişkenler burada filtrelenir
+                if (symbol is IPropertySymbol || symbol is IFieldSymbol)
+                {
+                    // Bu elemanın bizim sınıfımıza mı ait olduğunu kontrol ediyoruz. Böylece sadece sınıf içi veri erişimleri yakalanır
+                    // Dış sınıfların property'leri şimdilik analiz dışında bırakılır
+                    if (symbol.ContainingType?.ToDisplayString() == _currentClassId)
+                    {
+                        // Erişilen alanın/property'nin tam kimliği alınır. (Örn: MyClass._count veya MyClass.Name)
+                        string targetId = symbol.ToDisplayString();
+
+                        // Çift kayıt kontrolü
+                        // Aynı metot ile aynı değişken arasında daha önce bir erişim eklenmiş mi kontrol edilir. Böylece aynı erişim grafiğe tekrar tekrar eklenmez
+                        if (!Edges.Any(e => e.SourceId == _currentMethodId && e.TargetId == targetId))
+                        {
+                            // Okuma mı Yazma mı?
+                            // Eğer identifier bir atama ifadesinin sol tarafında yer alıyorsa bu bir yazma (write) erişimi olarak kabul edilir (Örn: count = 5;) 
+                            bool isWriting = node.Parent is AssignmentExpressionSyntax assignment && assignment.Left == node;
+
+                            // Metot ile değişken arasında bir Access ilişkisi oluşturulur
+                            Edges.Add(new CodeEdge
+                            {
+                                SourceId = _currentMethodId, // Erişimi yapan metot
+                                TargetId = targetId, // Erişilen field veya property
+                                Type = EdgeType.Access, // Bu bir metot çağrısı değil, doğrudan değişken erişimidir
+                                IsWriteAccess = isWriting // Erişimin yazma mı yoksa okuma mı olduğu bilgisi
+                            });
+                        }
+                    }
+                }
+            }
+            base.VisitIdentifierName(node);
+        }
     }
 }
