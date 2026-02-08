@@ -14,6 +14,8 @@ namespace Codography.Services
 {
     public class AnalysisService
     {
+        // Yapılan en son analiz sonucunu tutar. Dışarıdan sadece okunabilir, sınıf dışından değiştirilemez. Böylece analiz sonucu kontrolsüz şekilde ezilmez
+        public ProjectAnalysisResult LastResult { get; private set; }
         // Eskiden AnaliziBaslat metodu void tipindeydi.Analiz sonuçları, içindeki GlobalNodes ve GlobalEdges isimli genel listelere ekleniyordu.
         // Metot artık doğrudan ProjectAnalysisResult tipinde bir nesne döndürüyor. Artık veriyi saklamak yerine, analizi yapıp sonucu teslim ediyor.
         public ProjectAnalysisResult AnaliziBaslat(string secilenKlasorYolu)
@@ -39,8 +41,24 @@ namespace Codography.Services
             }
 
             // 3. Roslyn Derleme
+            // Roslyn analizinde kullanılacak temel .NET derleme referansları tanımlanır
+            // Bu referanslar olmadan System, Console, Collections gibi tipler çözülemez
+            var referanslar = new List<MetadataReference>
+            {
+                // mscorlib / System.Private.CoreLib. object, string, int gibi temel .NET tiplerini çözebilmek için eklenir
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+
+                // System.Runtime. DateTime, Task gibi runtime tiplerinin çözülebilmesi için gereklidir
+                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Runtime.dll")),
+
+                // System.Collections. List<T>, Dictionary<TKey, TValue> gibi koleksiyon tipleri için eklenir
+                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Collections.dll")),
+
+                // System.Console. Console.WriteLine gibi console API'lerinin çözülebilmesi için eklenir
+                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Console.dll"))
+            };
+
             // Ardından bir Compilation (derleme) nesnesi oluşturularak kodun anlamlandırılması (semantik model) sağlanır.
-            var referanslar = new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) };
             var derleme = CSharpCompilation.Create("CodographyAnalysis")
                 .AddReferences(referanslar)
                 .AddSyntaxTrees(tumAgaclar);
@@ -66,7 +84,38 @@ namespace Codography.Services
             // Bu yüzden result içindeki veriler OrganizeHierarchy metodu ile sıralanır.
             OrganizeHierarchy(result);
 
+            // Oluşturulan ilişkilerden ters yönlü erişim (reverse lookup) yapısı hazırlanır. Böylece bir düğüme kimlerin eriştiği bilgisi hızlıca bulunabilir
+            BuildReverseLookup(result);
+
+            // Oluşturulan analiz sonucu, servis içinde "son analiz" olarak saklanır. Daha sonra tekrar erişilebilmesi için LastResult alanına atanır
+            LastResult = result;
             return result;
+        }
+
+        // Analiz sonucundaki ilişkilerden ters yönlü bir arama (reverse lookup) yapısı oluşturur
+        // Bu yapı sayesinde: "Bu düğüme kimler erişiyor?" sorusu hızlıca cevaplanabilir
+        private void BuildReverseLookup(ProjectAnalysisResult result)
+        {
+            // Daha önce oluşturulmuş ters arama verileri varsa temizlenir. Böylece eski analizden kalan bilgiler karışmaz
+            result.ReverseLookup.Clear();
+
+            // Analizdeki tüm ilişkiler (edge) tek tek dolaşılır
+            foreach (var edge in result.Edges)
+            {
+                // Eğer hedef ID daha önce sözlüğe eklenmemişse bu hedef için yeni bir kaynak listesi oluşturulur
+                if (!result.ReverseLookup.ContainsKey(edge.TargetId))
+                {
+                    result.ReverseLookup[edge.TargetId] = new List<string>();
+                }
+
+                // Aynı kaynak ID'nin, aynı hedefin listesine daha önce eklenip eklenmediği kontrol edilir
+                // Böylece mükerrer (tekrarlı) kayıtların oluşması engellenir
+                if (!result.ReverseLookup[edge.TargetId].Contains(edge.SourceId))
+                {
+                    // Kaynağı, hedefe erişenler listesine ekle
+                    result.ReverseLookup[edge.TargetId].Add(edge.SourceId);
+                }
+            }
         }
 
         // Eskiden Hiyerarşi kurma (yani hangi metodun hangi sınıfa ait olduğu) işlemi analiz sırasında değil, MainWindow.xaml.cs içinde PopulateTreeView metodu çalışırken arayüz tarafında yapılıyordu.

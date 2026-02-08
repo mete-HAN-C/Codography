@@ -130,23 +130,23 @@ namespace Codography.ViewModels
         public void SaveCurrentAnalysis(string filePath)
         {
             // Şu anki analiz verileri tek bir nesne altında toplanır. Bu nesne JSON dosyasına dönüştürülerek kaydedilecektir
-            var resultToSave = new ProjectAnalysisResult
+            var resultToSave = _analysisService.LastResult;
+
+            // Kaydedilecek bir analiz sonucu var mı kontrol edilir
+            if (resultToSave != null)
             {
-                // Kaydedilecek analiz için bir proje adı atanır
-                ProjectName = "Son Analiz",
+                // Eğer kullanıcı UI tarafında analizle ilgili bir değişiklik yaptıysa (proje adı, etiketler vb.) bu değişiklikler kaydetmeden önce analiz nesnesine yansıtılır
+                resultToSave.ProjectName = "Tam Kapasite Analiz";
 
-                // UI'da gösterilen mevcut kök node'lar yeni bir listeye kopyalanır. Böylece referans problemleri yaşanmaz
-                Nodes = new List<CodeNode>(RootNodes)
-
-                // Not: Eğer Edges (ilişkiler) verisi de ViewModel'de tutuluyorsa, ProjectAnalysisResult içine eklenip burada da set edilebilir
-
-            };
-
-            // Analiz sonucu belirtilen dosya yoluna JSON formatında yazılır
-            _analysisService.SaveResultToJson(resultToSave, filePath);
-
-            // Kullanıcıya kaydetme işleminin başarılı olduğu bilgisi gösterilir
-            StatusMessage = "Analiz başarıyla diske kaydedildi.";
+                // Analiz sonucu JSON formatına çevrilerek belirtilen dosya yoluna kaydedilir. Bu işlem bağlantılar, ters indeksler ve tüm hiyerarşi bilgilerini içerir
+                _analysisService.SaveResultToJson(resultToSave, filePath);
+                StatusMessage = "Tüm analiz verileri (Bağlantılar ve İndeks dahil) başarıyla kaydedildi.";
+            }
+            else
+            {
+                // Henüz analiz yapılmamışsa veya analiz sonucu bellekte yoksa kullanıcıya kaydedilecek bir veri olmadığı bilgisi verilir
+                StatusMessage = "Kaydedilecek aktif bir analiz bulunamadı.";
+            }
         }
 
         // Property değiştiğinde UI'ı haberdar eden mekanizma

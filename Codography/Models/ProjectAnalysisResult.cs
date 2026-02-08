@@ -20,5 +20,12 @@ namespace Codography.Models
 
         // Analiz edilen tüm bağlantılar (Çağrılar ve Kalıtımlar)
         public List<CodeEdge> Edges { get; set; } = new List<CodeEdge>();
+
+        // TERS İNDEKS (Reverse Lookup):
+        // Bir düğümün (TargetId) hangi düğümler tarafından kullanıldığını hızlıca bulmak için kullanılır
+        // Key   : Hedef düğümün Id'si (örneğin bir sınıf, metot veya değişken)
+        // Value : Bu hedef düğümü kullanan kaynak düğümlerin Id listesi
+        // Amaç  : "Bu metodu / değişkeni kimler kullanıyor?" sorusuna O(1) erişimle cevap verebilmek
+        public Dictionary<string, List<string>> ReverseLookup { get; set; } = new Dictionary<string, List<string>>();
     }
 }
