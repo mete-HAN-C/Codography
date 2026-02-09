@@ -1,95 +1,107 @@
-﻿using Codography.Models;
-using Microsoft.CodeAnalysis;
+﻿using Codography.Models; // Analiz sonucunda kullanılan ProjectAnalysisResult, CodeNode, CodeEdge gibi model sınıflarına erişim sağlar
+using Microsoft.CodeAnalysis; // Roslyn altyapısı. C# kodunu parse etmek, syntax tree ve semantic model üretmek için gereklidir
 using Microsoft.CodeAnalysis.CSharp;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.ConstrainedExecution;
-using System.Security.Claims;
-using System.Windows.Controls;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Text.Json;
+using System.IO; // Dosya okuma / yazma işlemleri (File, Directory, Path)
+using System.Text.Json; // Nesneleri JSON formatına çevirme (serialize) ve JSON’dan geri okuma (deserialize) işlemleri için kullanılır
 
+// Bu namespace, uygulamanın iş mantığını ve analiz servislerini içerir. UI katmanı bu servisleri çağırır, detaylarla uğraşmaz
 namespace Codography.Services
 {
-    public class AnalysisService
+    // IAnalysisService arayüzünü implemente eder. Böylece servis soyutlanmış olur ve ileride farklı analiz servisleri eklenebilir
+    public class AnalysisService : IAnalysisService
     {
+        // Roslyn analizinde kullanılacak temel .NET derleme referansları tanımlanır. Bu referanslar olmadan System, Console, Collections gibi tipler çözülemez
+        // Referansları static olarak tutarak her seferinde diskten okunmasını engelliyoruz. Tüm AnalysisService örnekleri bu listeyi paylaşır
+        // readonly: Uygulama çalışırken yanlışlıkla değiştirilmesini engeller
+        private static readonly List<MetadataReference> _references = new List<MetadataReference>
+        {
+            // mscorlib / System.Private.CoreLib. object, string, int gibi temel .NET tiplerini çözebilmek için eklenir
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+
+            // System.Runtime. DateTime, Task gibi runtime tiplerinin çözülebilmesi için gereklidir
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Runtime.dll")),
+
+            // System.Collections. List<T>, Dictionary<TKey, TValue> gibi koleksiyon tipleri için eklenir
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Collections.dll")),
+
+            // System.Console. Console.WriteLine gibi console API'lerinin çözülebilmesi için eklenir
+            MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Console.dll"))
+        };
+
         // Yapılan en son analiz sonucunu tutar. Dışarıdan sadece okunabilir, sınıf dışından değiştirilemez. Böylece analiz sonucu kontrolsüz şekilde ezilmez
         public ProjectAnalysisResult LastResult { get; private set; }
-        // Eskiden AnaliziBaslat metodu void tipindeydi.Analiz sonuçları, içindeki GlobalNodes ve GlobalEdges isimli genel listelere ekleniyordu.
+
+        // Eskiden AnaliziBaslat metodu void tipindeydi. Analiz sonuçları, içindeki GlobalNodes ve GlobalEdges isimli genel listelere ekleniyordu.
         // Metot artık doğrudan ProjectAnalysisResult tipinde bir nesne döndürüyor. Artık veriyi saklamak yerine, analizi yapıp sonucu teslim ediyor.
-        public ProjectAnalysisResult AnaliziBaslat(string secilenKlasorYolu)
+        public async Task<ProjectAnalysisResult> AnaliziBaslatAsync(string secilenKlasorYolu)
         {
-            var result = new ProjectAnalysisResult();
-
-            if (!Directory.Exists(secilenKlasorYolu)) return result;
-
-            // 1. Dosyaları bul
-            // Klasör içindeki tüm .cs dosyalarını bulur; ancak bin ve obj gibi gereksiz klasörleri pas geçer.
-            var dosyaYollari = Directory.GetFiles(secilenKlasorYolu, "*.cs", SearchOption.AllDirectories)
-                .Where(dosya => !dosya.Contains("\\bin\\") && !dosya.Contains("\\obj\\"))
-                .ToArray();
-
-            List<SyntaxTree> tumAgaclar = new List<SyntaxTree>();
-
-            // 2. Syntax Ağaçlarını oluştur
-            // Her bir kod dosyası okunur ve bunlar birer SyntaxTree (kod ağacı) haline getirilir.
-            foreach (var dosya in dosyaYollari)
+            // Ağır analiz işlemleri UI thread’i kilitlemesin diye arka planda çalıştırılır. Böylece uygulama donmaz, kullanıcı arayüzü akıcı kalır
+            return await Task.Run(() =>
             {
-                string kodIcerigi = File.ReadAllText(dosya);
-                tumAgaclar.Add(CSharpSyntaxTree.ParseText(kodIcerigi));
-            }
+                var result = new ProjectAnalysisResult();
 
-            // 3. Roslyn Derleme
-            // Roslyn analizinde kullanılacak temel .NET derleme referansları tanımlanır
-            // Bu referanslar olmadan System, Console, Collections gibi tipler çözülemez
-            var referanslar = new List<MetadataReference>
-            {
-                // mscorlib / System.Private.CoreLib. object, string, int gibi temel .NET tiplerini çözebilmek için eklenir
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                // Kullanıcının seçtiği klasör geçerli değilse boş ama hatasız bir analiz sonucu döndürülür
+                if (!Directory.Exists(secilenKlasorYolu)) return result;
 
-                // System.Runtime. DateTime, Task gibi runtime tiplerinin çözülebilmesi için gereklidir
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Runtime.dll")),
+                // 1. Dosyaları bul
+                // Klasör içindeki tüm .cs dosyalarını bulur; ancak bin ve obj gibi gereksiz klasörleri pas geçer.
+                var dosyaYollari = Directory.GetFiles(secilenKlasorYolu, "*.cs", SearchOption.AllDirectories)
+                    .Where(dosya => !dosya.Contains("\\bin\\") && !dosya.Contains("\\obj\\"))
+                    .ToArray();
 
-                // System.Collections. List<T>, Dictionary<TKey, TValue> gibi koleksiyon tipleri için eklenir
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Collections.dll")),
+                List<SyntaxTree> tumAgaclar = new List<SyntaxTree>();
 
-                // System.Console. Console.WriteLine gibi console API'lerinin çözülebilmesi için eklenir
-                MetadataReference.CreateFromFile(Path.Combine(Path.GetDirectoryName(typeof(object).Assembly.Location), "System.Console.dll"))
-            };
+                // 2. Syntax Ağaçlarını oluştur
+                // Her bir kod dosyası okunur ve bunlar birer SyntaxTree (kod ağacı) haline getirilir.
+                foreach (var dosya in dosyaYollari)
+                {
+                    try
+                    {
+                        // Dosya okuma hatasına karşı koruma.
+                        string kodIcerigi = File.ReadAllText(dosya);
+                        tumAgaclar.Add(CSharpSyntaxTree.ParseText(kodIcerigi));
+                    }
 
-            // Ardından bir Compilation (derleme) nesnesi oluşturularak kodun anlamlandırılması (semantik model) sağlanır.
-            var derleme = CSharpCompilation.Create("CodographyAnalysis")
-                .AddReferences(referanslar)
-                .AddSyntaxTrees(tumAgaclar);
+                    catch (Exception ex)
+                    {
+                        // Bir dosya hatalıysa analizi durdurma, devam et.
+                        System.Diagnostics.Debug.WriteLine($"Dosya okunamadı: {dosya}. Hata: {ex.Message}");
+                    }
+                }
 
-            // 4. Gezgin ile TÜM verileri topla
-            // Her kod dosyası için bir KodGezgini(Gezgin) oluşturulur. Gezgin, kodun içine girer:
-            foreach (var agac in tumAgaclar)
-            {
-                // BEYİN: Roslyn o anki dosyanın anlam haritasını çıkarıyor
-                SemanticModel model = derleme.GetSemanticModel(agac);
+                // Ardından bir Compilation (derleme) nesnesi oluşturularak kodun anlamlandırılması (semantik model) sağlanır.
+                var derleme = CSharpCompilation.Create("CodographyAnalysis")
+                    .AddReferences(_references)
+                    .AddSyntaxTrees(tumAgaclar);
 
-                // KodGezgini.cs sınıfına gidip gezgin oluşturulur.
-                var gezgin = new KodGezgini(model);
+                // 4. Gezgin ile TÜM verileri topla
+                // Her kod dosyası için bir KodGezgini(Gezgin) oluşturulur. Gezgin, kodun içine girer:
+                foreach (var agac in tumAgaclar)
+                {
+                    // BEYİN: Roslyn o anki dosyanın anlam haritasını çıkarıyor
+                    SemanticModel model = derleme.GetSemanticModel(agac);
 
-                // Gezgin gezmeye başlar.
-                gezgin.Visit(agac.GetRoot());
+                    // KodGezgini.cs sınıfına gidip gezgin oluşturulur.
+                    var gezgin = new KodGezgini(model);
 
-                // Gezgin işini bitirip tüm verilerini ProjectAnalysisResult.cs sınıfına tek tek taşır.
-                result.Nodes.AddRange(gezgin.Nodes);
-                result.Edges.AddRange(gezgin.Edges);
-            }
-            // Tüm dosyalar taranıp her şey result içine düz bir liste olarak aktarıldı ama veriler karışık durumda.
-            // Bu yüzden result içindeki veriler OrganizeHierarchy metodu ile sıralanır.
-            OrganizeHierarchy(result);
+                    // Gezgin gezmeye başlar.
+                    gezgin.Visit(agac.GetRoot());
 
-            // Oluşturulan ilişkilerden ters yönlü erişim (reverse lookup) yapısı hazırlanır. Böylece bir düğüme kimlerin eriştiği bilgisi hızlıca bulunabilir
-            BuildReverseLookup(result);
+                    // Gezgin işini bitirip tüm verilerini ProjectAnalysisResult.cs sınıfına tek tek taşır.
+                    result.Nodes.AddRange(gezgin.Nodes);
+                    result.Edges.AddRange(gezgin.Edges);
+                }
+                // Tüm dosyalar taranıp her şey result içine düz bir liste olarak aktarıldı ama veriler karışık durumda.
+                // Bu yüzden result içindeki veriler OrganizeHierarchy metodu ile sıralanır.
+                OrganizeHierarchy(result);
 
-            // Oluşturulan analiz sonucu, servis içinde "son analiz" olarak saklanır. Daha sonra tekrar erişilebilmesi için LastResult alanına atanır
-            LastResult = result;
-            return result;
+                // Oluşturulan ilişkilerden ters yönlü erişim (reverse lookup) yapısı hazırlanır. Böylece bir düğüme kimlerin eriştiği bilgisi hızlıca bulunabilir
+                BuildReverseLookup(result);
+
+                // Bu analiz sonucunu servis içinde saklıyoruz. Böylece UI tekrar analiz yapmadan son sonucu kullanabilir (kaydetme, tekrar yükleme vb.)
+                LastResult = result;
+                return result;
+            });
         }
 
         // Analiz sonucundaki ilişkilerden ters yönlü bir arama (reverse lookup) yapısı oluşturur
@@ -129,19 +141,21 @@ namespace Codography.Services
 
             // Elimizdeki karışık veri listesini sadece Sınıf(Class) olanları seçip classes isimli bir "üst liste" oluşturuyoruz. Bu bizim ana klasörlerimiz olacak.
             var classes = allNodes.Where(n => n.Type == NodeType.Class).ToList();
+            var methods = allNodes.Where(n => n.Type == NodeType.Method).ToList();
 
             // Her bir sınıfı sırayla eline alır (Örneğin şu an elimizde Araba sınıfı var).
             foreach (var cls in classes)
             {
-                // allNodes içindeki metotlara bakar. Eğer metodun ID'si "Araba." ile başlıyorsa (Örn: Araba.Calistir()), bu metodu o sınıfın metot listesine (methodsOfClass) dahil eder.
-                var methodsOfClass = allNodes.Where(n =>
-                    n.Type == NodeType.Method &&
-                    n.Id.StartsWith(cls.Id + ".")).ToList();
-
-                // Çift eklemeyi önlemek için temizleyip ekliyoruz
-                // Önce sınıfın içini temizliyoruz.
-                // Bulduğu o metotları, o an elinde tuttuğu cls (Araba) nesnesinin içindeki Children listesine kopyalar.
+                // Çift eklemeyi önlemek için temizleyip ekliyoruz. Önce sınıfın içini temizliyoruz.
                 cls.Children.Clear();
+
+                // allNodes içindeki metotlara bakar. Eğer metodun ID'si "Araba." ile başlıyorsa (Örn: Araba.Calistir()), bu metodu o sınıfın metot listesine (methodsOfClass) dahil eder.
+                var methodsOfClass = methods.Where(m => {
+                    int lastDot = m.Id.LastIndexOf('.');
+                    return lastDot != -1 && m.Id.Substring(0, lastDot) == cls.Id;
+                }).ToList();
+
+                // Bulduğu o metotları, o an elinde tuttuğu cls (Araba) nesnesinin içindeki Children listesine kopyalar.
                 cls.Children.AddRange(methodsOfClass);
             }
             // Önce result.Nodes içinde karışık (sınıf+metotlar) vardı. Biz metotları sınıfların içine taşıdık ama onlar hala ana listede de duruyorlar.
@@ -150,8 +164,8 @@ namespace Codography.Services
             result.Nodes = classes.Cast<CodeNode>().ToList();
         }
 
-        // Verilen analiz sonucunu JSON formatına çevirip belirtilen dosya yoluna kaydeder
-        public void SaveResultToJson(ProjectAnalysisResult result, string filePath)
+        // Verilen analiz sonucunu JSON formatına çevirip belirtilen dosya yoluna kaydederek kalıcı hale getirir. Program kapansa bile daha sonra tekrar yüklenebilir
+        public async Task SaveResultToJsonAsync(ProjectAnalysisResult result, string filePath)
         {
             // JSON yazım ayarları belirlenir. WriteIndented = true sayesinde JSON daha okunabilir (satır satır, girintili) olur
             var options = new JsonSerializerOptions { WriteIndented = true };
@@ -160,17 +174,17 @@ namespace Codography.Services
             string jsonString = JsonSerializer.Serialize(result, options);
 
             // Oluşturulan JSON metni belirtilen dosya yolundaki dosyaya yazılır. Dosya yoksa oluşturulur, varsa üzerine yazılır
-            File.WriteAllText(filePath, jsonString);
+            await File.WriteAllTextAsync(filePath, jsonString);
         }
 
-        // Daha önce kaydedilmiş olan JSON dosyasını okuyup analiz sonucunu geri yükler
-        public ProjectAnalysisResult LoadResultFromJson(string filePath)
+        // Daha önce kaydedilmiş analiz dosyasını geri yükler. Kod analizi tekrar çalıştırılmadan sonuçlar ekrana getirilebilir
+        public async Task<ProjectAnalysisResult> LoadResultFromJsonAsync(string filePath)
         {
             // Dosya gerçekten var mı kontrol edilir. Yoksa null döndürülerek yükleme işlemi sonlandırılır
             if (!File.Exists(filePath)) return null;
 
             // JSON dosyasının içeriği metin olarak okunur
-            string jsonString = File.ReadAllText(filePath);
+            string jsonString = await File.ReadAllTextAsync(filePath);
 
             // Okunan JSON metni tekrar ProjectAnalysisResult nesnesine dönüştürülür
             return JsonSerializer.Deserialize<ProjectAnalysisResult>(jsonString);

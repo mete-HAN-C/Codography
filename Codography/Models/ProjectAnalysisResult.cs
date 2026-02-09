@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-// Eskiden analiz sonuçları (GlobalNodes ve GlobalEdges), AnalysisService sınıfı içerisinde iki ayrı liste olarak tutuyorduk. Artık tüm sonuçları ProjectAnalysisResult isimli tek bir "konteynır" sınıfında topladık.
+﻿// Eskiden analiz sonuçları (GlobalNodes ve GlobalEdges), AnalysisService sınıfı içerisinde iki ayrı liste olarak tutuyorduk. Artık tüm sonuçları ProjectAnalysisResult isimli tek bir "konteynır" sınıfında topladık.
 // Bu yeni yapı sayesinde AnalysisService artık doğrudan bir ProjectAnalysisResult nesnesi döndürecek. Tüm analiz verisini tek bir paket olarak taşıyabiliriz.
 namespace Codography.Models
 {

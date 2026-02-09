@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:models="clr-namespace:Codography.Models"
+        xmlns:conv="clr-namespace:Codography.Converters" 
         mc:Ignorable="d"
         Title="Codography - Proje Analiz Aracı" Height="600" Width="900">
     <Grid>
@@ -49,38 +50,26 @@
                 <TextBlock Text="Codography Analiz Paneli" FontSize="22" FontWeight="Thin" Margin="10" HorizontalAlignment="Center"/>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10">
-                    <Button x:Name="btnAnaliz" Content="Yeni Analiz Başlat" 
+                    <Button x:Name="btnAnaliz" 
+                        Content="Yeni Analiz Başlat" 
+                        Style="{StaticResource ModernButtonStyle}"
+                        Background="{StaticResource PrimaryBlue}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                        Padding="20,10" Click="btnAnaliz_Click" Cursor="Hand"
-                        Background="#007ACC" Foreground="White" BorderThickness="0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="5"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                        Click="btnAnaliz_Click" />
 
-                <Button x:Name="btnKaydet" Content="Analizi Kaydet" 
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                    Padding="20,10" Click="btnKaydet_Click" Margin="10,0" Cursor="Hand"
-                    Background="#28A745" Foreground="White" BorderThickness="0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="5"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                    <Button x:Name="btnKaydet" 
+                        Content="Analizi Kaydet" 
+                        Style="{StaticResource ModernButtonStyle}"
+                        Background="{StaticResource SuccessGreen}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                        Click="btnKaydet_Click" />
 
-                <Button x:Name="btnYukle" Content="Kayıttan Yükle" 
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                    Padding="20,10" Click="btnYukle_Click" Cursor="Hand"
-                    Background="#6C757D" Foreground="White" BorderThickness="0">
-                    <Button.Resources>
-                        <Style TargetType="Border">
-                            <Setter Property="CornerRadius" Value="5"/>
-                        </Style>
-                    </Button.Resources>
-                </Button>
+                    <Button x:Name="btnYukle" 
+                        Content="Kayıttan Yükle" 
+                        Style="{StaticResource ModernButtonStyle}"
+                        Background="{StaticResource SecondaryGray}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                        Click="btnYukle_Click" />
                 </StackPanel>
 
                 <ProgressBar x:Name="pbAnaliz" Height="10" Width="300" Margin="0,20,0,0" 

@@ -2,10 +2,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
 
 // Eskiden KodGezgini, MainWindow.xaml.cs dosyasının içinde bir yardımcı sınıftı. Şimdi ise Services klasörü altında bağımsız bir dosya olarak yer alıyor.
 namespace Codography.Services
@@ -37,6 +33,9 @@ namespace Codography.Services
             // Aynı isimli sınıfların çakışmaması için Namespace bilgisi eklendi artık : (Namespace + ClassName)
             var classSymbol = _model.GetDeclaredSymbol(node);
             if (classSymbol == null) return;
+
+            // İç içe gezme sırasında (örneğin nested class senaryoları) sınıftan çıkarken önceki sınıfa geri dönebilmek için mevcut sınıf bilgileri saklanır
+            string previousClassId = _currentClassId;
             _currentClassId = classSymbol.ToDisplayString();
 
             // Sınıfı bir düğüm olarak ekle
@@ -74,8 +73,9 @@ namespace Codography.Services
             // Eğer bu satır yazılmazsa, gezgin sınıfın kapısından içeri girmez. İçerideki metotları da görmesi için "yoluna devam et" komutu vermen gerekir.
             base.VisitClassDeclaration(node);
 
-            // Sınıftan çıkarken Id'yi temizlemek önemlidir. (Sıralı ziyaretler için)
-            _currentClassId = null;
+            // Sınıf gezmesi tamamlandığında, gezginin bir önceki sınıf bağlamına geri dönmesini sağlar
+            // Bu yapılmazsa sonraki ziyaretler yanlış sınıfa bağlanır ve analiz sonuçları hatalı olur.
+            _currentClassId = previousClassId;
         }
 
         // Bir sınıfın içindeki alanları (field) yakalamak için override edilen metottur.

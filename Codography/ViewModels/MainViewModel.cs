@@ -1,8 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using System.Windows.Input;
 using Codography.Models;
 using Codography.Services;
 
@@ -11,7 +9,10 @@ namespace Codography.ViewModels
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        private readonly AnalysisService _analysisService;
+        // Analiz işlemlerini gerçekleştiren servis katmanını temsil eder. Sınıf, somut bir sınıfa değil IAnalysisService arayüzüne bağımlıdır.
+        // Bu sayede: Bağımlılıklar gevşek olur (loosely coupled), Servisin iç implementasyonu değişse bile bu sınıf etkilenmez 
+        // readonly: Bu servis yalnızca constructor’da atanır, sonradan yanlışlıkla değiştirilmesi engellenir.
+        private readonly IAnalysisService _analysisService;
 
         // Eskiden ProgressBar kontrolü (pbAnaliz.IsIndeterminate) ve durum mesajları (txtDurum.Text) doğrudan MainWindow.xaml.cs dosyasında yönetiliyordu.
         // Artık bunu MainViewModel içerisine taşıdık. IsBusy özelliği ProgressBar'ı, StatusMessage ise durum metnini temsil ediyor. Bu sayede arayüz (UI) sadece veriyi göstermekle yükümlü hale geldi.
@@ -22,9 +23,12 @@ namespace Codography.ViewModels
         // Artık, koleksiyona bir eleman eklendiğinde veya silindiğinde TreeView bunu otomatik olarak algılayıp kendini günceller. Ayrıca INotifyPropertyChanged arayüzü sayesinde IsBusy gibi özellikler değiştiğinde UI anında haberdar olur.
         public ObservableCollection<CodeNode> RootNodes { get; } = new ObservableCollection<CodeNode>();
 
-        public MainViewModel()
+        // Constructor üzerinden IAnalysisService bağımlılığı dışarıdan alınır. Bu yaklaşıma Dependency Injection denir.
+        // Amaç: ViewModel’in servis oluşturmasını engellemek, Test edilebilirliği artırmak, Farklı servis implementasyonlarının kolayca takılabilmesini sağlamak
+        // analysisService parametresi, daha önce tanımlanan readonly _analysisService alanına atanır.
+        public MainViewModel(IAnalysisService analysisService)
         {
-            _analysisService = new AnalysisService();
+            _analysisService = analysisService;
         }
 
         // Analiz sırasında ProgressBar'ı ve butonu kontrol etmek için
@@ -57,7 +61,7 @@ namespace Codography.ViewModels
 
                 // 2. Arka plan işlemi
                 // Analiz işi AnalysisService.cs sınıfına devredilir. O sınıftaki AnaliziBaslat metodu dosya yolu gönderilerek tetiklenir
-                var result = await Task.Run(() => _analysisService.AnaliziBaslat(folderPath));
+                var result = await _analysisService.AnaliziBaslatAsync(folderPath);
 
                 // 3. Sonuçları UI listesine aktarma
                 // (Bu kısım UI thread'inde çalışır çünkü ObservableCollection UI ile bağlıdır)
@@ -68,11 +72,18 @@ namespace Codography.ViewModels
 
                 StatusMessage = $"Analiz başarıyla tamamlandı! {result.Nodes.Count} sınıf bulundu.";
             }
-            catch (System.Exception ex)
+
+            // Yetki (permission) kaynaklı hatalar burada özel olarak yakalanır. Kullanıcının seçtiği klasöre okuma izni yoksa bu blok çalışır.
+            catch (UnauthorizedAccessException)
             {
-                // 4. Hata yönetimi
+                StatusMessage = "Hata: Seçilen klasöre erişim izniniz yok.";
+            }
+
+            catch (Exception ex)
+            {
+                // 4. Hata yönetimi : Yukarıdaki özel durumlar dışında kalan tüm beklenmeyen hatalar burada yakalanır.
+                // ex.Message kullanılarak hatanın teknik açıklaması kullanıcıya iletilir. Böylece uygulama çökmez, hata kontrollü şekilde yönetilmiş olur.
                 StatusMessage = $"Hata oluştu: {ex.Message}";
-                // Burada loglama yapabilirsin (Örn: NLog, Serilog)
             }
             finally
             {
@@ -94,7 +105,7 @@ namespace Codography.ViewModels
                 StatusMessage = "Kayıtlı analiz yükleniyor...";
 
                 // Dosya okuma ve JSON parse işlemi arka planda çalıştırılır. Böylece UI thread bloke edilmez
-                var result = await Task.Run(() => _analysisService.LoadResultFromJson(filePath));
+                var result = await Task.Run(() => _analysisService.LoadResultFromJsonAsync(filePath));
 
                 // JSON içeriği başarıyla okunmuşsa
                 if (result != null)
@@ -127,7 +138,7 @@ namespace Codography.ViewModels
         }
 
         // Mevcut analiz sonucunu JSON dosyası olarak diske kaydeder
-        public void SaveCurrentAnalysis(string filePath)
+        public async Task SaveCurrentAnalysisAsync(string filePath)
         {
             // Şu anki analiz verileri tek bir nesne altında toplanır. Bu nesne JSON dosyasına dönüştürülerek kaydedilecektir
             var resultToSave = _analysisService.LastResult;
@@ -135,16 +146,34 @@ namespace Codography.ViewModels
             // Kaydedilecek bir analiz sonucu var mı kontrol edilir
             if (resultToSave != null)
             {
-                // Eğer kullanıcı UI tarafında analizle ilgili bir değişiklik yaptıysa (proje adı, etiketler vb.) bu değişiklikler kaydetmeden önce analiz nesnesine yansıtılır
-                resultToSave.ProjectName = "Tam Kapasite Analiz";
+                try
+                {
+                    // UI tarafında işlem devam ederken kullanıcıyı bilgilendirmek için
+                    IsBusy = true;
+                    StatusMessage = "Analiz verileri kaydediliyor...";
 
-                // Analiz sonucu JSON formatına çevrilerek belirtilen dosya yoluna kaydedilir. Bu işlem bağlantılar, ters indeksler ve tüm hiyerarşi bilgilerini içerir
-                _analysisService.SaveResultToJson(resultToSave, filePath);
-                StatusMessage = "Tüm analiz verileri (Bağlantılar ve İndeks dahil) başarıyla kaydedildi.";
+                    // Gerekirse kullanıcı arayüzünden gelen proje adı güncellenir
+                    resultToSave.ProjectName = "Tam Kapasite Analiz";
+
+                    // Analiz sonucu asenkron olarak JSON dosyasına kaydedilir
+                    await _analysisService.SaveResultToJsonAsync(resultToSave, filePath);
+
+                    StatusMessage = "Tüm analiz verileri başarıyla kaydedildi.";
+                }
+                catch (Exception ex)
+                {
+                    // Dosya yazma veya serileştirme sırasında oluşabilecek hatalar yakalanır
+                    StatusMessage = $"Kaydetme hatası: {ex.Message}";
+                }
+                finally
+                {
+                    // İşlem bitince UI tekrar etkileşime açılır
+                    IsBusy = false;
+                }
             }
             else
             {
-                // Henüz analiz yapılmamışsa veya analiz sonucu bellekte yoksa kullanıcıya kaydedilecek bir veri olmadığı bilgisi verilir
+                // Henüz analiz yapılmadıysa veya sonuç yoksa kullanıcı bilgilendirilir
                 StatusMessage = "Kaydedilecek aktif bir analiz bulunamadı.";
             }
         }

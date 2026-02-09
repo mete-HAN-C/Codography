@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-// CodeEdge sınıfı, eskiden MainWindow.xaml.cs dosyasında arayüz kodlarının hemen üstünde tanımlı iken artık kendi fiziksel dosyası var.
+﻿// CodeEdge sınıfı, eskiden MainWindow.xaml.cs dosyasında arayüz kodlarının hemen üstünde tanımlı iken artık kendi fiziksel dosyası var.
 namespace Codography.Models
 {
     /// <summary>

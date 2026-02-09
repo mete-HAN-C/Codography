@@ -1,7 +1,6 @@
-﻿using System;
+﻿using Codography.ViewModels; // MainViewModel nesnesini oluşturup DataContext'e bağladığımız için gerekli.
 using System.Windows; // WPF için gerekli (Window, MessageBox). Konsol değil, pencere uygulaması olduğu için var.
-using System.Windows.Controls; // WPF için gerekli (Window, MessageBox). Konsol değil, pencere uygulaması olduğu için var.
-using Codography.ViewModels; // MainViewModel nesnesini oluşturup DataContext'e bağladığımız için gerekli.
+using Microsoft.Extensions.DependencyInjection; // Dependency Injection (Bağımlılık Enjeksiyonu) altyapısını kullanabilmek için gerekli GetRequiredService, AddSingleton, AddTransient gibi DI metotlarını sağlar
 
 // Eskiden hem veri işleyen hem de UI güncelleyen bir sınıf olan MainWindow;
 // Artık sadece kullanıcı etkileşimlerini (klasör seçme gibi) yakalayan ve bunları ViewModel'e ileten ince bir katmana dönüştü. İş mantığı, veri yönetimi ve UI senkronizasyonu tamamen ViewModel ve Service katmanlarına paylaştırıldı.
@@ -17,8 +16,9 @@ namespace Codography
         {
             InitializeComponent(); // XAML’de çizdiğimiz her şey yüklenir (Butonlar, grid’ler).
 
-            // MainViewModel içindeki StatusMessage, IsBusy gibi bilgilerin olduğu bir nesne oluşturuyoruz bu nesneyi _viewModel referansı ile işaretliyoruz.
-            _viewModel = new MainViewModel();
+            // Dependency Injection (DI) container üzerinden MainViewModel örneği alınır
+            // Gerekli bağımlılıkları otomatik olarak çözülmüş hazır bir ViewModel döner
+            _viewModel = App.ServiceProvider.GetRequiredService<MainViewModel>();
 
             // MainWindow.xaml.cs dosyasına veri kaynağı olarak _viewModel nesnesini veriyoruz. Yani UI ile ViewModel'i birbirine bağlıyoruz.
             // Bu atama yapıldığı anda, XAML tarafındaki (MainWindow.xaml) tüm {Binding ...} ifadeleri canlanır.
@@ -43,8 +43,8 @@ namespace Codography
                 await _viewModel.StartAnalysisAsync(dialog.FolderName);
             }
         }
-        // Mevcut analiz sonucunu JSON dosyası olarak kaydetmeyi sağlayan metot.
-        private void btnKaydet_Click(object sender, RoutedEventArgs e)
+        // Kaydet butonuna basıldığında mevcut analiz sonucunu JSON dosyası olarak kaydetmeyi sağlayan asenkron event metot.
+        private async void btnKaydet_Click(object sender, RoutedEventArgs e)
         {
             // Kullanıcıya dosya kaydetme penceresi açılır.
             var dialog = new Microsoft.Win32.SaveFileDialog
@@ -60,8 +60,8 @@ namespace Codography
             if (dialog.ShowDialog() == true)
             {
                 // ViewModel içerisindeki kaydetme metodu çağrılır.
-                // Analiz sonucu, kullanıcının seçtiği dosya yoluna JSON formatında yazılır.
-                _viewModel.SaveCurrentAnalysis(dialog.FileName);
+                // Analiz sonucu, kullanıcının seçtiği dosya yoluna JSON formatında asenkron olarak kaydedilir
+                await _viewModel.SaveCurrentAnalysisAsync(dialog.FileName);
             }
         }
         // Daha önce kaydedilmiş olan analiz sonucunu JSON dosyasından yükleyen metot.

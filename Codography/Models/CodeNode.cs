@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-// CodeNodge sınıfı, eskiden MainWindow.xaml.cs dosyasında arayüz kodlarının hemen üstünde tanımlı iken artık kendi fiziksel dosyası var.
+﻿// CodeNodge sınıfı, eskiden MainWindow.xaml.cs dosyasında arayüz kodlarının hemen üstünde tanımlı iken artık kendi fiziksel dosyası var.
 // Eski CodeNode sınıfı sadece Id, Name ve Type alanlarına sahipti. Artık yeni sınıf Children { get; set; } özelliğine sahip. Bu, CodeNode sınıfını Recursive (Özyinelemeli) bir yapıya dönüştürüyor. Artık bir düğüm kendi içinde alt düğümleri taşıyabiliyor.
 namespace Codography.Models
 {
