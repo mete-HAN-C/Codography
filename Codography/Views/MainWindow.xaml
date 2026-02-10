@@ -26,10 +26,28 @@
 
                             <StackPanel x:Name="MethodDetails" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
                                 <TextBlock Text="{Binding ReturnType, StringFormat=' : {0}'}" 
-                       Foreground="#28A745" FontSize="11" FontStyle="Italic"/>
+                   Foreground="#28A745" FontSize="11" FontStyle="Italic"/>
 
                                 <TextBlock Text="{Binding Parameters.Count, StringFormat=' ({0} Parametre)'}" 
-                       Foreground="DimGray" FontSize="10" Margin="5,0,0,0"/>
+                   Foreground="DimGray" FontSize="10" Margin="5,0,0,0"/>
+
+                                <TextBlock Text="{Binding ComplexityScore, StringFormat=' [Puan: {0}]'}" 
+                   FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="Gray"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ComplexityScore, Converter={StaticResource GreaterThanConverter}, ConverterParameter=10}" Value="True">
+                                                    <Setter Property="Foreground" Value="Red"/>
+                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ComplexityScore, Converter={StaticResource RangeConverter}, ConverterParameter='5-10'}" Value="True">
+                                                    <Setter Property="Foreground" Value="Orange"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </StackPanel>
 

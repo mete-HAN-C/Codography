@@ -176,6 +176,10 @@ namespace Codography.Services
             var methodSymbol = _model.GetDeclaredSymbol(node);
             _currentMethodId = methodSymbol?.ToDisplayString() ?? $"{_currentClassId}.{node.Identifier.Text}";
 
+            // Metodun karmaşıklık (cyclomatic complexity) puanını hesaplamak için karar noktalarını sayan yardımcı metot çağrılır
+            // Hesaplanan değer, bu metodun içerdiği tüm dallanma yapıları (if, döngüler, switch-case, &&, || vb.) dikkate alınarak elde edilir
+            int score = CalculateComplexity(node);
+
             // Metodu bir düğüm (node) olarak temsil etmek için yeni bir CodeNode oluşturulur
             var newNode = new CodeNode
             {
@@ -190,7 +194,10 @@ namespace Codography.Services
 
                 // SEMANTİK ANALİZ: Metodun dönüş tipi alınır. (Örn: void, int, string, Task<bool>).
                 // Eğer herhangi bir sebeple dönüş tipi alınamazsa varsayılan olarak "void" atanır
-                ReturnType = methodSymbol?.ReturnType?.ToDisplayString() ?? "void"
+                ReturnType = methodSymbol?.ReturnType?.ToDisplayString() ?? "void",
+
+                // Hesaplanan karmaşıklık puanı, metodun ComplexityScore alanına atanır. Bu değer, metodun ne kadar dallanma ve karar yapısı içerdiğini temsil eder
+                ComplexityScore = score
             };
 
             // SEMANTİK ANALİZ: Metodun aldığı parametreler alınır
@@ -212,6 +219,33 @@ namespace Codography.Services
 
             // Metottan çıkarken "şu an bu metottayım" bilgisini temizle.
             _currentMethodId = null;
+        }
+
+
+        // Metodun cyclomatic (dallanma) karmaşıklığını hesaplayan yardımcı metot
+        private int CalculateComplexity(MethodDeclarationSyntax node)
+        {
+            // Eğer metot gövdesi yoksa (interface veya abstract metot) böyle bir metot çalışabilir kod içermediği için karmaşıklıkları tanım gereği 1 kabul edilir
+            if (node.Body == null && node.ExpressionBody == null) return 1;
+
+            // Metot içindeki tüm alt düğümleri dolaşarak akış kontrolünü etkileyen karar yapıları seçilir (Her biri karmaşıklığı 1 artırır)
+            // karar yapıları (if, for, while, foreach, switch-case, catch, mantıksal && ve ||)
+            var controlStructures = node.DescendantNodes().Where(n =>
+                n is IfStatementSyntax || // if koşulları
+                n is WhileStatementSyntax || // while döngüleri
+                n is ForStatementSyntax || // for döngüleri
+                n is ForEachStatementSyntax || // foreach döngüleri
+                n is CaseSwitchLabelSyntax || // switch içindeki case yapıları
+                n is CatchClauseSyntax || // try-catch içindeki catch blokları
+                n is ConditionalExpressionSyntax); // Ternary operatörler (? :)
+
+            // Metot içindeki tüm tokenları dolaşarak mantıksal VE (&&) ve mantıksal VEYA (||) operatörlerini bulunur. Çünkü bu operatörler de akışı dallandırır
+            var logicalOperators = node.DescendantTokens().Where(t =>
+                t.IsKind(SyntaxKind.AmpersandAmpersandToken) || // &&
+                t.IsKind(SyntaxKind.BarBarToken)); // ||
+
+            // Başlangıç karmaşıklık puanı 1'dir (metodun kendisi). Her karar yapısı ve her mantıksal operatör bu puanı 1 artırır
+            return 1 + controlStructures.Count() + logicalOperators.Count();
         }
 
         // --- METOT ÇAĞRILARI YAKALAMA ---

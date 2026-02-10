@@ -27,5 +27,8 @@ namespace Codography.Models
         // Metodun aldığı parametreleri tutar. Her parametre string olarak saklanır. (Örn: "string name", "int age", "Motor motor")
         // Liste olarak tutulmasının sebebi, bir metodun birden fazla parametresi olabilmesidir
         public List<string> Parameters { get; set; } = new List<string>();
+
+        // Metodun karmaşıklık puanını tutar. Her metot, içinde hiçbir karar yapısı olmasa bile, tanımı gereği en az 1 karmaşıklık puanıyla başlar.
+        public int ComplexityScore { get; set; } = 1;
     }
 }
