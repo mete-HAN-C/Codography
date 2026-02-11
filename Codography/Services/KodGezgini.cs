@@ -180,6 +180,37 @@ namespace Codography.Services
             // Hesaplanan değer, bu metodun içerdiği tüm dallanma yapıları (if, döngüler, switch-case, &&, || vb.) dikkate alınarak elde edilir
             int score = CalculateComplexity(node);
 
+            // 2. Fiziksel Satır Sayımı (Lines Of Code - LOC)
+            // Metot düğümünün (syntax node) kaynak kod içerisindeki konum bilgisi alınır
+            // Bu bilgi başlangıç ve bitiş satır numaralarını içerir
+            var lineSpan = node.GetLocation().GetLineSpan();
+
+            // Toplam satır sayısı hesaplanır
+            // Bitiş satırı - başlangıç satırı + 1 (+1 eklenmesinin sebebi başlangıç satırını da dahil etmektir)
+            int totalLines = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line + 1;
+
+            // 3. Yorum Satırlarının Tespiti
+            // Metot düğümü içerisindeki tüm yorum (trivia) öğelerini bulur
+            // Trivia: Kodun çalışmasını etkilemeyen öğelerdir. (yorumlar, boşluklar, satır sonları vb.)
+            // ANCAK Burada sadece yorum türündeki trivia’lar filtrelenir
+            var comments = node.DescendantTrivia()
+                .Where(t => t.IsKind(SyntaxKind.SingleLineCommentTrivia) ||  // // Tek satır yorumlar
+                            t.IsKind(SyntaxKind.MultiLineCommentTrivia) ||   // /* Çok satırlı yorumlar */
+                            t.IsKind(SyntaxKind.DocumentationCommentExteriorTrivia));  // /// XML dokümantasyon yorumları
+
+            // Toplam yorum satırı sayısını tutacak sayaç
+            int commentLinesCount = 0;
+
+            // Bulunan her yorum bloğu için
+            foreach (var comment in comments)
+            {
+                // Yorumun kaynak kod içerisindeki konum bilgisi alınır
+                var commentSpan = comment.GetLocation().GetLineSpan();
+
+                // Yorumun kaç satır sürdüğü hesaplanır. (Bitiş - başlangıç + 1)
+                commentLinesCount += (commentSpan.EndLinePosition.Line - commentSpan.StartLinePosition.Line + 1);
+            }
+
             // Metodu bir düğüm (node) olarak temsil etmek için yeni bir CodeNode oluşturulur
             var newNode = new CodeNode
             {
@@ -192,12 +223,27 @@ namespace Codography.Services
                 // Bu düğümün bir metodu temsil ettiği belirtilir
                 Type = NodeType.Method,
 
-                // SEMANTİK ANALİZ: Metodun dönüş tipi alınır. (Örn: void, int, string, Task<bool>).
-                // Eğer herhangi bir sebeple dönüş tipi alınamazsa varsayılan olarak "void" atanır
-                ReturnType = methodSymbol?.ReturnType?.ToDisplayString() ?? "void",
+                // Bu metodun bağlı olduğu üst yapının (sınıfın) kimliği atanır
+                // _currentClassId genelde analiz sırasında aktif olarak işlenen sınıfın Id’sidir
+                // Bu sayede Class → Method hiyerarşik ilişkisi kurulur
+                ParentId = _currentClassId,
 
-                // Hesaplanan karmaşıklık puanı, metodun ComplexityScore alanına atanır. Bu değer, metodun ne kadar dallanma ve karar yapısı içerdiğini temsil eder
-                ComplexityScore = score
+                // SEMANTİK ANALİZ: Metodun dönüş tipi alınır. (Örn: void, int, string, Task<bool>).
+                // methodSymbol ve ReturnType null olabilir. Bu yüzden güvenli erişim için ?. (null-conditional) operatörü kullanılır
+                // Eğer herhangi bir sebeple dönüş tipi alınamazsa varsayılan olarak "void" atanır
+                // ToDisplayString ile tip metne dönüştürülür ve MinimallyQualifiedFormat kullanılarak namespace’ler gizlenir
+                // Örn: System.Threading.Tasks.Task<bool> yerine Task<bool> 
+                ReturnType = methodSymbol?.ReturnType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "void",
+
+                // Hesaplanan karmaşıklık skoru, metodun ComplexityScore alanına atanır. score değişkeni daha önce CalculateComplexity metodundan gelmiştir
+                // Bu değer, metodun ne kadar dallanma ve karar yapısı içerdiğini temsil eder
+                ComplexityScore = score,
+
+                // Metodun fiziksel toplam satır sayısı (LOC) atanır. Başlangıç ve bitiş satır farkına göre hesaplanmıştır
+                TotalLines = totalLines,
+
+                // Metot içerisindeki toplam yorum satırı sayısı atanır. (Tek satır, çok satırlı ve XML yorumları dahil)
+                CommentLines = commentLinesCount
             };
 
             // SEMANTİK ANALİZ: Metodun aldığı parametreler alınır

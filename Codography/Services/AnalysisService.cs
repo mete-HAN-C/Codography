@@ -149,11 +149,15 @@ namespace Codography.Services
                 // Çift eklemeyi önlemek için temizleyip ekliyoruz. Önce sınıfın içini temizliyoruz.
                 cls.Children.Clear();
 
-                // allNodes içindeki metotlara bakar. Eğer metodun ID'si "Araba." ile başlıyorsa (Örn: Araba.Calistir()), bu metodu o sınıfın metot listesine (methodsOfClass) dahil eder.
-                var methodsOfClass = methods.Where(m => {
-                    int lastDot = m.Id.LastIndexOf('.');
-                    return lastDot != -1 && m.Id.Substring(0, lastDot) == cls.Id;
-                }).ToList();
+                // Tüm metotlar arasından, ParentId değeri ilgili sınıfın Id’sine eşit olanları filtreliyoruz
+                var methodsOfClass = methods
+                    .Where(m =>
+                        // Her metodun ParentId'si, ait olduğu üst yapının (yani sınıfın) Id’sini tutar
+                        // Eğer metodun ParentId değeri, şu an işlem yaptığımız sınıfın (cls) Id’sine eşitse metot o sınıfa aittir.
+                        m.ParentId == cls.Id
+                    )
+                    // Filtreleme sonucunu somut bir listeye çeviriyoruz
+                    .ToList();
 
                 // Bulduğu o metotları, o an elinde tuttuğu cls (Araba) nesnesinin içindeki Children listesine kopyalar.
                 cls.Children.AddRange(methodsOfClass);

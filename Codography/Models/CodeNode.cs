@@ -16,6 +16,10 @@ namespace Codography.Models
         // Öğenin türü (Class veya Method).
         public NodeType Type { get; set; }
 
+        // Bu nesnenin bağlı olduğu üst (parent) öğenin kimliğini tutar. Örneğin bir metodun ParentId değeri, ait olduğu sınıfın Id'si olabilir 
+        // Bu sayede hiyerarşik ilişki (Class → Method gibi) kurulabilir.
+        public string ParentId { get; set; }
+
         // Artık bir CodeNode (örneğin bir Class) oluşturduğunda, o sınıfa ait tüm metotları bu Children listesinin içine ekleyebiliriz. Örnek: Araba sınıfı bir düğümse, Calistir() ve Durdur() metotları o düğümün "çocukları" (Children) olur.
         // Children listesi sayesinde, TreeView'a sadece en üstteki sınıfları vermek yeterli olur. WPF, listenin içindeki bu Children özelliğine bakarak alt dalları (metotları) otomatik olarak ekranda oluşturabilir.
         // Özetle: Bu satır, verilerini karmaşık bir tablodan ziyade, gerçek bir dosya-klasör yapısı gibi düzenli tutmamızı sağlıyor.
@@ -30,5 +34,16 @@ namespace Codography.Models
 
         // Metodun karmaşıklık puanını tutar. Her metot, içinde hiçbir karar yapısı olmasa bile, tanımı gereği en az 1 karmaşıklık puanıyla başlar.
         public int ComplexityScore { get; set; } = 1;
+
+        // Metodun toplam satır sayısını tutar (Lines Of Code - LOC). Kod + yorum + boş satırlar dahil olacak şekilde hesaplanabilir
+        public int TotalLines { get; set; }
+
+        // Metodun içerisindeki yorum satırlarının sayısını tutar. (// tek satır yorumlar veya /* */ blok yorumlar)
+        public int CommentLines { get; set; }
+
+        // Metodun dokümantasyon oranını yüzde (%) olarak hesaplayan yardımcı özellik
+        // Eğer toplam satır sayısı 0'dan büyükse: yorum satırı / toplam satır * 100 formülü ile oran hesaplanır
+        // Eğer toplam satır 0 ise: bölme hatasını önlemek için 0 döndürülür   
+        public double CommentRatio => TotalLines > 0 ? (double)CommentLines / TotalLines * 100 : 0;
     }
 }

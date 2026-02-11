@@ -48,6 +48,23 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                <TextBlock Text="{Binding TotalLines, StringFormat=' [{0} Satır]'}" 
+           Foreground="DimGray" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center"/>
+
+                                <TextBlock Text="{Binding CommentLines, StringFormat=' ({0} Yorum)'}" 
+           FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#28A745"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CommentRatio, Converter={StaticResource LowerThanConverter}, ConverterParameter=10}" Value="True">
+                                                    <Setter Property="Foreground" Value="#DC3545"/>
+                                                    <Setter Property="ToolTip" Value="Düşük Yorum Oranı! Kodun daha fazla açıklamaya ihtiyacı var."/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </StackPanel>
 
