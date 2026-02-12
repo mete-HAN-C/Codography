@@ -95,6 +95,11 @@ namespace Codography.Services
                 // Bu yüzden result içindeki veriler OrganizeHierarchy metodu ile sıralanır.
                 OrganizeHierarchy(result);
 
+                // Proje analiz sonuçları hazırlandıktan sonra, tüm metotlar için Maintainability Index hesaplamasını başlatır.
+                // result nesnesi; sınıfları, metotları ve onların metriklerini içerir.
+                // Bu çağrı ile CalculateMaintainability metodu çalışır ve her metodun MaintainabilityIndex değeri doldurulur.
+                CalculateMaintainability(result);
+
                 // Oluşturulan ilişkilerden ters yönlü erişim (reverse lookup) yapısı hazırlanır. Böylece bir düğüme kimlerin eriştiği bilgisi hızlıca bulunabilir
                 BuildReverseLookup(result);
 
@@ -192,6 +197,45 @@ namespace Codography.Services
 
             // Okunan JSON metni tekrar ProjectAnalysisResult nesnesine dönüştürülür
             return JsonSerializer.Deserialize<ProjectAnalysisResult>(jsonString);
+        }
+
+        // Proje analiz sonucundaki tüm metotlar için Maintainability Index (MI) hesaplayan yardımcı metot
+        private void CalculateMaintainability(ProjectAnalysisResult result)
+        {
+            // Proje içindeki tüm üst düğümleri (genelde sınıflar) dolaş
+            // result.Nodes → Hiyerarşik yapı (Namespace → Class → Method gibi)
+            foreach (var cls in result.Nodes)
+            {
+                // Her sınıfın altındaki çocuk düğümleri (genelde metotlar) dolaş
+                foreach (var method in cls.Children)
+                {
+                    // Sadece metod tipindeki düğümler için hesaplama yap. (Sınıf, property vb. için değil)
+                    if (method.Type == NodeType.Method)
+                    {
+                        // Toplam satır sayısından yorum satırları çıkartılarak gerçek kod satır sayısı hesaplanır.
+                        // Math.Max(1, ...) kullanımı log(0) hatasını önlemek içindir.
+                        // Eğer metod tamamen yorumdan oluşuyorsa bile minimum 1 kabul edilir.
+                        int pureCodeLines = Math.Max(1, method.TotalLines - method.CommentLines);
+
+                        // Sadeleştirilmiş Maintainability Index (MI) formülü uygulanır
+                        // Orijinal MI formülünde Halstead Volume kullanılır, ancak maliyetli olduğu için biz satır sayısı kullandık.
+                        double rawMI = 171
+
+                            // Sadece çalışan kodların satır sayısına bağlı karmaşıklık etkisi (logaritmik)
+                            // NOT : ileride daha doğru sonuç için Halstead kullanılabilir.
+                            - (21.4 * Math.Log(pureCodeLines))
+
+                            // Cyclomatic Complexity'nin etkisi
+                            - (0.23 * method.ComplexityScore);
+
+                        // Hesaplanan ham MI değeri (rawMI), klasik formülde 0–171 arası olabilir
+                        // Bu değeri 0–100 aralığına normalize ediyoruz: rawMI * 100 / 171
+                        // Math.Min(100, ...) → 100'ü aşmasını engeller
+                        // Math.Max(0, ...)   → 0'ın altına düşmesini engeller
+                        method.MaintainabilityIndex = Math.Max(0, Math.Min(100, (rawMI * 100 / 171)));
+                    }
+                }
+            }
         }
     }
 }

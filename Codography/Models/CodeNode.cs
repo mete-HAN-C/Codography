@@ -45,5 +45,19 @@ namespace Codography.Models
         // Eğer toplam satır sayısı 0'dan büyükse: yorum satırı / toplam satır * 100 formülü ile oran hesaplanır
         // Eğer toplam satır 0 ise: bölme hatasını önlemek için 0 döndürülür   
         public double CommentRatio => TotalLines > 0 ? (double)CommentLines / TotalLines * 100 : 0;
+
+        // Metodun veya sınıfın bakım yapılabilirlik skorunu tutar. Maintainability Index, 0–100 arası hesaplanır.
+        // 0  → Çok kötü, bakımı zor
+        // 100 → Çok sağlıklı, bakımı kolay
+        public double MaintainabilityIndex { get; set; }
+
+        // MaintainabilityIndex değerine göre otomatik renk döndüren yardımcı özellik
+        // UI tarafında ekstra if yazmadan doğrudan renk bağlanabilir
+        public string HealthColor => MaintainabilityIndex switch
+        {
+            >= 80 => "#28A745", // Eğer indeks 80 ve üzerindeyse Yeşil (Sağlıklı)
+            >= 50 => "#FFC107", // Eğer indeks 50 ile 79 arasındaysa Sarı (Dikkat)
+            _ => "#DC3545"      // 50'nin altındaki tüm değerler Kırmızı (Kritik)
+        };
     }
 }

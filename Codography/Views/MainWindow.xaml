@@ -65,6 +65,10 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                <Border Background="{Binding HealthColor}" CornerRadius="4" Padding="4,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding MaintainabilityIndex, StringFormat='MI: {0:F0}'}" 
+               Foreground="White" FontSize="9" FontWeight="Bold" ToolTip="Bakım Yapılabilirlik İndeksi"/>
+                                </Border>
                             </StackPanel>
                         </StackPanel>
 
