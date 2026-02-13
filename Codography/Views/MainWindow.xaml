@@ -70,6 +70,13 @@
                Foreground="White" FontSize="9" FontWeight="Bold" ToolTip="Bakım Yapılabilirlik İndeksi"/>
                                 </Border>
                             </StackPanel>
+                            <TextBlock Text=" ⚠️" 
+                   Foreground="#FFC107" 
+                   FontWeight="Bold"
+                   Visibility="{Binding HasWarning, Converter={StaticResource BooleanToVisibilityConverter}}"
+                   ToolTip="{Binding WarningSummary}"
+                   VerticalAlignment="Center"
+                   Margin="5,0,0,0"/>
                         </StackPanel>
 
                         <HierarchicalDataTemplate.Triggers>

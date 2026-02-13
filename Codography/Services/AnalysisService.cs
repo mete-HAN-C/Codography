@@ -100,6 +100,10 @@ namespace Codography.Services
                 // Bu çağrı ile CalculateMaintainability metodu çalışır ve her metodun MaintainabilityIndex değeri doldurulur.
                 CalculateMaintainability(result);
 
+                // DetectCodeSmells metodu çağrılıyor.
+                // Bu metot, proje analiz sonucunu alarak tüm sınıf ve metotları dolaşıp code smell (kötü kod kokusu) tespiti yapar.
+                DetectCodeSmells(result);
+
                 // Oluşturulan ilişkilerden ters yönlü erişim (reverse lookup) yapısı hazırlanır. Böylece bir düğüme kimlerin eriştiği bilgisi hızlıca bulunabilir
                 BuildReverseLookup(result);
 
@@ -212,18 +216,13 @@ namespace Codography.Services
                     // Sadece metod tipindeki düğümler için hesaplama yap. (Sınıf, property vb. için değil)
                     if (method.Type == NodeType.Method)
                     {
-                        // Toplam satır sayısından yorum satırları çıkartılarak gerçek kod satır sayısı hesaplanır.
-                        // Math.Max(1, ...) kullanımı log(0) hatasını önlemek içindir.
-                        // Eğer metod tamamen yorumdan oluşuyorsa bile minimum 1 kabul edilir.
-                        int pureCodeLines = Math.Max(1, method.TotalLines - method.CommentLines);
-
                         // Sadeleştirilmiş Maintainability Index (MI) formülü uygulanır
                         // Orijinal MI formülünde Halstead Volume kullanılır, ancak maliyetli olduğu için biz satır sayısı kullandık.
                         double rawMI = 171
 
                             // Sadece çalışan kodların satır sayısına bağlı karmaşıklık etkisi (logaritmik)
                             // NOT : ileride daha doğru sonuç için Halstead kullanılabilir.
-                            - (21.4 * Math.Log(pureCodeLines))
+                            - (21.4 * Math.Log(method.PureCodeLines))
 
                             // Cyclomatic Complexity'nin etkisi
                             - (0.23 * method.ComplexityScore);
@@ -236,6 +235,49 @@ namespace Codography.Services
                     }
                 }
             }
+        }
+        // Bu metot, analiz sonucu elde edilen proje verisi üzerinde her metodu kontrol ederek "code smell" (kötü kod kokusu) tespiti yapar.
+        private void DetectCodeSmells(ProjectAnalysisResult result)
+        {
+            // Projedeki tüm düğümleri (genellikle sınıflar) dolaşıyoruz
+            foreach (var cls in result.Nodes)
+            {
+                // Her sınıfın alt elemanlarını (metotlarını) dolaşıyoruz
+                foreach (var method in cls.Children)
+                {
+                    // Sadece tipi "Method" olan düğümlerle ilgileniyoruz. (Field, Property vs. varsa onları atlıyoruz)
+                    if (method.Type == NodeType.Method)
+                    {
+                        // Önceden eklenmiş code smell'leri temizliyoruz. Böylece analiz her çalıştığında liste sıfırdan doldurulur
+                        method.CodeSmells.Clear();
+
+                        // 1. Kural: Çok Uzun Metot (Long Method)
+                        // Eğer metodun saf kod satırı sayısı (yorumlar hariç) 40'tan fazlaysa bu metot uzun kabul edilir
+                        if (method.PureCodeLines > 40)
+                            method.CodeSmells.Add("Çok Uzun Metot: Okunabilirliği artırmak için parçalara bölün (Refactor).");
+
+                        // 2. Kural: Çok Fazla Parametre (Long Parameter List)
+                        // Eğer parametre sayısı 4'ten fazlaysa metot fazla parametre alıyor demektir
+                        if (method.Parameters.Count > 4)
+                            method.CodeSmells.Add("Çok Fazla Parametre: Nesne tabanlı yapı (Object) kullanmayı düşünün.");
+
+                        // 3. Kural: Yüksek Karmaşıklık (High Complexity)
+                        // ComplexityScore 10'dan büyükse metotta çok fazla if, loop veya dallanma vardır
+                        if (method.ComplexityScore > 10)
+                            method.CodeSmells.Add("Yüksek Karmaşıklık: Çok fazla dallanma (if/loop) var, mantığı sadeleştirin.");
+
+                        // 4. Kural: Yetersiz Yorum (Missing Documentation)
+                        // Eğer metot 10 satırdan büyükse ve yorum oranı %10'dan azsa belgeleme eksik kabul edilir
+                        if (method.PureCodeLines > 10 && method.CommentRatio < 10)
+                            method.CodeSmells.Add("Düşük Belgeleme: Karmaşık mantığı açıklayan yorum satırları ekleyin.");
+
+                        // 5. Kural: Bakım Zorluğu (Low MI)
+                        // MaintainabilityIndex 40'ın altındaysa kodun bakımı zor kabul edilir
+                        if (method.MaintainabilityIndex < 40)
+                            method.CodeSmells.Add("Kritik Durum: Kodun bakımı ve geliştirilmesi çok zor görünüyor.");
+                    }
+                }
+            } 
         }
     }
 }
