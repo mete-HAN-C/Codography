@@ -43,6 +43,11 @@ namespace Codography.Services
                 // Kullanıcının seçtiği klasör geçerli değilse boş ama hatasız bir analiz sonucu döndürülür
                 if (!Directory.Exists(secilenKlasorYolu)) return result;
 
+                // Önce seçilen klasör yolunun sonundaki olası klasör ayırıcı karakteri (\"\\\" veya \"/\") temizler, ardından sadece klasörün adını alır (tam yolu değil).
+                // Örneğin: "C:\\Projeler\\Codography\\" → "Codography"
+                // Elde edilen klasör adı ProjectName alanına atanır.
+                result.ProjectName = Path.GetFileName(secilenKlasorYolu.TrimEnd(Path.DirectorySeparatorChar));
+
                 // 1. Dosyaları bul
                 // Klasör içindeki tüm .cs dosyalarını bulur; ancak bin ve obj gibi gereksiz klasörleri pas geçer.
                 var dosyaYollari = Directory.GetFiles(secilenKlasorYolu, "*.cs", SearchOption.AllDirectories)
@@ -104,6 +109,10 @@ namespace Codography.Services
                 // Bu metot, proje analiz sonucunu alarak tüm sınıf ve metotları dolaşıp code smell (kötü kod kokusu) tespiti yapar.
                 DetectCodeSmells(result);
 
+                // Proje analiz sonucuna göre dashboard için gerekli özet istatistikleri hesaplar.
+                // (Toplam sınıf sayısı, toplam metot sayısı, ortalama Maintainability Index, en riskli 5 metot vb. değerleri doldurur.).
+                GenerateDashboardReport(result);
+
                 // Oluşturulan ilişkilerden ters yönlü erişim (reverse lookup) yapısı hazırlanır. Böylece bir düğüme kimlerin eriştiği bilgisi hızlıca bulunabilir
                 BuildReverseLookup(result);
 
@@ -111,6 +120,35 @@ namespace Codography.Services
                 LastResult = result;
                 return result;
             });
+        }
+        // Dashboard ekranında gösterilecek özet istatistikleri üretir. (toplam sınıf, toplam metot, ortalama MI, en riskli metotlar vs.)
+        private void GenerateDashboardReport(ProjectAnalysisResult result)
+        {
+            // Projedeki tüm sınıfların (Nodes) altındaki metotları tek bir düz liste haline getiriyoruz.
+            // Önce her sınıfın Children koleksiyonunu alıyoruz (SelectMany), sonra sadece tipi Method olanları filtreliyoruz.
+            var allMethods = result.Nodes
+                .SelectMany(n => n.Children) // Tüm sınıfların alt elemanlarını tek listede birleştir
+                .Where(m => m.Type == NodeType.Method) // Sadece metot tipinde olanları al
+                .ToList(); // Listeye çevir
+
+            // Toplam sınıf sayısını hesaplıyoruz (Nodes = sınıflar)
+            result.TotalClassCount = result.Nodes.Count;
+
+            // Toplam metot sayısını hesaplıyoruz
+            result.TotalMethodCount = allMethods.Count;
+
+            // Eğer projede en az bir metot varsa istatistikleri hesapla
+            if (allMethods.Any())
+            {
+                // Ortalama Maintainability Index (MI) değerini hesapla. Tüm metotların MI değerlerinin ortalamasını alır
+                result.AverageMaintainabilityIndex = allMethods.Average(m => m.MaintainabilityIndex);
+
+                // En karmaşık (riskli) 5 metodu bul. ComplexityScore değerine göre büyükten küçüğe sıralayarak İlk 5 tanesini al. 
+                result.TopRiskyMethods = allMethods
+                    .OrderByDescending(m => m.ComplexityScore) // En yüksek karmaşıklık en üstte
+                    .Take(5) // İlk 5 metodu al
+                    .ToList(); // Listeye çevir
+            }
         }
 
         // Analiz sonucundaki ilişkilerden ters yönlü bir arama (reverse lookup) yapısı oluşturur

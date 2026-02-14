@@ -70,7 +70,12 @@ namespace Codography.ViewModels
                     RootNodes.Add(node);
                 }
 
-                StatusMessage = $"Analiz başarıyla tamamlandı! {result.Nodes.Count} sınıf bulundu.";
+                // Analiz tamamlandığında kullanıcıya gösterilecek durum mesajını oluşturur.
+                // Toplam sınıf sayısı, toplam metot sayısı ve ortalama Maintainability Index (MI) değerini ekrana yazar.
+                // {result.AverageMaintainabilityIndex:F1} → MI değerini virgülden sonra 1 basamak olacak şekilde formatlar.
+                StatusMessage = $"Analiz Tamamlandı! | Sınıf: {result.TotalClassCount} | " +
+                    $"Metot: {result.TotalMethodCount} | " +
+                    $"Genel Sağlık (MI): {result.AverageMaintainabilityIndex:F1}/100";
             }
 
             // Yetki (permission) kaynaklı hatalar burada özel olarak yakalanır. Kullanıcının seçtiği klasöre okuma izni yoksa bu blok çalışır.
@@ -120,8 +125,10 @@ namespace Codography.ViewModels
                         RootNodes.Add(node);
                     }
 
-                    // Kullanıcıya başarılı yükleme bilgisi gösterilir
-                    StatusMessage = $"{result.ProjectName} (Analiz Tarihi: {result.AnalysisDate}) başarıyla yüklendi.";
+                    // Daha önce analiz edilmiş bir proje yüklendiğinde gösterilecek durum mesajını oluşturur.
+                    // Proje adını, ortalama Maintainability Index (sağlık puanı) değerini ve analiz tarihini kullanıcıya bilgi amaçlı gösterir.
+                    // {result.AverageMaintainabilityIndex:F1} → MI değerini virgülden sonra 1 basamak olacak şekilde formatlar.
+                    StatusMessage = $"{result.ProjectName} | Sağlık Puanı: {result.AverageMaintainabilityIndex:F1}/100 | (Analiz Tarihi: {result.AnalysisDate}) başarıyla yüklendi.";
                 }
             }
             catch (Exception ex)
@@ -151,9 +158,6 @@ namespace Codography.ViewModels
                     // UI tarafında işlem devam ederken kullanıcıyı bilgilendirmek için
                     IsBusy = true;
                     StatusMessage = "Analiz verileri kaydediliyor...";
-
-                    // Gerekirse kullanıcı arayüzünden gelen proje adı güncellenir
-                    resultToSave.ProjectName = "Tam Kapasite Analiz";
 
                     // Analiz sonucu asenkron olarak JSON dosyasına kaydedilir
                     await _analysisService.SaveResultToJsonAsync(resultToSave, filePath);

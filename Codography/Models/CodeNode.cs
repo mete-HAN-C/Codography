@@ -1,5 +1,7 @@
 ﻿// CodeNodge sınıfı, eskiden MainWindow.xaml.cs dosyasında arayüz kodlarının hemen üstünde tanımlı iken artık kendi fiziksel dosyası var.
 // Eski CodeNode sınıfı sadece Id, Name ve Type alanlarına sahipti. Artık yeni sınıf Children { get; set; } özelliğine sahip. Bu, CodeNode sınıfını Recursive (Özyinelemeli) bir yapıya dönüştürüyor. Artık bir düğüm kendi içinde alt düğümleri taşıyabiliyor.
+using System.Text.Json.Serialization; // Özellikle [JsonIgnore], [JsonPropertyName] gibi JSON serileştirme ayarlarını kullanmak için eklenir.
+
 namespace Codography.Models
 {
     /// <summary>
@@ -58,6 +60,7 @@ namespace Codography.Models
 
         // MaintainabilityIndex değerine göre otomatik renk döndüren yardımcı özellik
         // UI tarafında ekstra if yazmadan doğrudan renk bağlanabilir
+        [JsonIgnore] // Bu property JSON formatına dönüştürüldüğünde bu alan çıktıya dahil edilmez.
         public string HealthColor => MaintainabilityIndex switch
         {
             >= 80 => "#28A745", // Eğer indeks 80 ve üzerindeyse Yeşil (Sağlıklı)
@@ -72,6 +75,7 @@ namespace Codography.Models
         // Bu property, metoda ait herhangi bir uyarı olup olmadığını kontrol eder.
         // Eğer CodeSmells listesinde en az 1 eleman varsa true döner.
         // UI tarafında uyarı ikonu göstermek için kullanılır.
+        [JsonIgnore] // Bu property JSON formatına dönüştürüldüğünde bu alan çıktıya dahil edilmez.
         public bool HasWarning => CodeSmells.Count > 0;
 
         // Bu property, listedeki tüm uyarıları tek bir metin haline getirir.
@@ -79,6 +83,7 @@ namespace Codography.Models
         // CodeSmells.Select(w => "• " + w) : Her uyarının başına madde işareti (•) ekler.
         // string.Join("\n", ...) : Uyarıları satır satır birleştirir.
         // Örnek çıktı: • Çok Uzun Metot, • Yüksek Karmaşıklık, • Düşük Belgeleme
+        [JsonIgnore] // Bu property JSON formatına dönüştürüldüğünde bu alan çıktıya dahil edilmez.
         public string WarningSummary => string.Join("\n", CodeSmells.Select(w => "• " + w));
     }
 }

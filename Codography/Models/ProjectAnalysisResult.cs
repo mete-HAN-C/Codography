@@ -13,6 +13,18 @@ namespace Codography.Models
         // Analizin yapıldığı tarih ve saati tutar. Nesne oluşturulduğu anda otomatik olarak o anki tarih/saat atanır. Daha sonra analiz ne zaman yapıldı diye göstermek için kullanılır
         public DateTime AnalysisDate { get; set; } = DateTime.Now;
 
+        // Projedeki toplam sınıf sayısını tutar
+        public int TotalClassCount { get; set; }
+
+        // Projedeki toplam metot sayısını tutar
+        public int TotalMethodCount { get; set; }
+
+        // Tüm metotların Maintainability Index (bakım kolaylığı puanı) ortalamasını tutar
+        public double AverageMaintainabilityIndex { get; set; }
+
+        // ComplexityScore değeri en yüksek olan (en riskli) metotların listesini tutar
+        public List<CodeNode> TopRiskyMethods { get; set; } = new List<CodeNode>();
+
         // Analiz edilen tüm sınıflar ve metotlar (Hiyerarşik yapıda)
         public List<CodeNode> Nodes { get; set; } = new List<CodeNode>();
 
