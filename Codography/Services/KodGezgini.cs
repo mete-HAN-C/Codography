@@ -189,7 +189,34 @@ namespace Codography.Services
             // Bitiş satırı - başlangıç satırı + 1 (+1 eklenmesinin sebebi başlangıç satırını da dahil etmektir)
             int totalLines = lineSpan.EndLinePosition.Line - lineSpan.StartLinePosition.Line + 1;
 
-            // 3. Yorum Satırlarının Tespiti
+            // 3. Boş Satırların Tespiti
+            // node içindeki tüm alt öğeleri (descendant) geziyoruz
+            // DescendantTrivia() → yorumlar, boşluklar, satır sonları gibi "trivia" dediğimiz yapıları getirir
+            // ANCAK Burada sadece boş satır olan trivia’lar filtrelenir
+            var allEndLines = node.DescendantTrivia().Where(t => t.IsKind(SyntaxKind.EndOfLineTrivia));
+
+            // Boş satır sayısını tutacak değişken
+            int emptyLinesCount = 0;
+
+            // Bulduğumuz tüm satır sonlarını tek tek geziyoruz
+            foreach (var eol in allEndLines)
+            {
+                // Hangi satırda olduğunu öğrenmek için o satır sonunun dosya içindeki konumunu alıyoruz.
+                var eolSpan = eol.GetLocation().GetLineSpan();
+
+                // SyntaxTree içindeki gerçek metne erişiyoruz ve ilgili satır numarasındaki satırın tamamını string olarak alıyoruz
+                var textOnLine = node.SyntaxTree.GetText().Lines[eolSpan.StartLinePosition.Line].ToString();
+
+                // Eğer satır tamamen boşsa veya sadece boşluk/tab içeriyorsa
+                // (IsNullOrWhiteSpace → null, "", "   ", "\t" gibi durumları yakalar)
+                if (string.IsNullOrWhiteSpace(textOnLine))
+                {
+                    // Boş satır sayısını 1 artırıyoruz
+                    emptyLinesCount++;
+                }
+            }
+
+            // 4. Yorum Satırlarının Tespiti
             // Metot düğümü içerisindeki tüm yorum (trivia) öğelerini bulur
             // Trivia: Kodun çalışmasını etkilemeyen öğelerdir. (yorumlar, boşluklar, satır sonları vb.)
             // ANCAK Burada sadece yorum türündeki trivia’lar filtrelenir
@@ -243,7 +270,10 @@ namespace Codography.Services
                 TotalLines = totalLines,
 
                 // Metot içerisindeki toplam yorum satırı sayısı atanır. (Tek satır, çok satırlı ve XML yorumları dahil)
-                CommentLines = commentLinesCount
+                CommentLines = commentLinesCount,
+
+                // Hesapladığımız boş satır sayısını EmptyLines adlı property'ye atıyoruz.
+                EmptyLines = emptyLinesCount
             };
 
             // SEMANTİK ANALİZ: Metodun aldığı parametreler alınır

@@ -48,7 +48,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Text="{Binding TotalLines, StringFormat=' [{0} Satır]'}" 
+                                <TextBlock Text="{Binding PureCodeLines, StringFormat=' [{0} Satır]'}" 
            Foreground="DimGray" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center"/>
 
                                 <TextBlock Text="{Binding CommentLines, StringFormat=' ({0} Yorum)'}" 

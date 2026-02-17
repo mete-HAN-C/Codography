@@ -43,10 +43,13 @@ namespace Codography.Models
         // Metodun içerisindeki yorum satırlarının sayısını tutar. (// tek satır yorumlar veya /* */ blok yorumlar)
         public int CommentLines { get; set; }
 
-        // Toplam satır sayısından (TotalLines) yorum satırları (CommentLines) çıkartılarak gerçek kod satır sayısı hesaplanır.
+        // Toplam boş satır sayısını tutan propertydir.
+        public int EmptyLines { get; set; }
+
+        // Toplam satır sayısından (TotalLines) yorum satırları (CommentLines) ve boş satırlar (EmptyLines) çıkartılarak gerçek kod satır sayısı hesaplanır.
         // Math.Max(1, ...) kullanımı log(0) hatasını önlemek içindir.
         // Eğer metod tamamen yorumdan oluşuyorsa bile minimum 1 kabul edilir.
-        public int PureCodeLines => Math.Max(1, TotalLines - CommentLines);
+        public int PureCodeLines => Math.Max(1, TotalLines - CommentLines - EmptyLines);
 
         // Metodun dokümantasyon oranını yüzde (%) olarak hesaplayan yardımcı özellik
         // Eğer toplam satır sayısı 0'dan büyükse: yorum satırı / toplam satır * 100 formülü ile oran hesaplanır
