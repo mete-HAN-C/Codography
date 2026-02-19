@@ -37,6 +37,10 @@ namespace Codography
             // MainWindow'u kayıt et
             // Pencere DI üzerinden oluşturulabilir hale gelir
             services.AddTransient<MainWindow>();
+
+            // IGraphService istendiğinde GraphService kullanılacak demektir.
+            // AddSingleton → Uygulama boyunca sadece 1 tane oluşturulur ve her yerde aynı nesne kullanılır.
+            services.AddSingleton<IGraphService, GraphService>();
         }
     }
 }
