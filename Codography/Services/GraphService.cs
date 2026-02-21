@@ -2,6 +2,9 @@
 using Microsoft.Msagl.Core.Geometry.Curves; // MSAGL'nin geometrik şekillerini (dikdörtgen, eğri vs.) oluşturmak için eklenir. CurveFactory burada bulunur.
 using Microsoft.Msagl.Core.Layout; // MSAGL'nin temel grafik yapısını (GeometryGraph, Node vb.) kullanmak için eklenir.
 using Microsoft.Msagl.Layout.Layered; // Katmanlı (hiyerarşik) yerleşim algoritması olan Sugiyama burada bulunur. Sınıfları alt alta veya katmanlı dizmek için kullanılır.
+using Microsoft.Msagl.Layout.MDS;          // MDS algoritması için eklendi
+using Microsoft.Msagl.Layout.Incremental;  // ForceDirected algoritması için eklendi
+using Microsoft.Msagl.Miscellaneous;       // Genel Layout hesaplayıcısı için eklendi
 
 namespace Codography.Services
 {
@@ -9,7 +12,7 @@ namespace Codography.Services
     public class GraphService : IGraphService
     {
         // Analiz sonucu gelen Node'lara göre otomatik yerleşim hesaplayan metot.
-        public GeometryGraph CalculateLayout(ProjectAnalysisResult analysisResult)
+        public GeometryGraph CalculateLayout(ProjectAnalysisResult analysisResult, LayoutAlgorithmType algorithmType = LayoutAlgorithmType.Sugiyama)
         {
             // 1. MSAGL'nin Geometri Grafiğini oluşturuyoruz. Bu boş bir tuval gibi düşünülebilir.
             var geometryGraph = new GeometryGraph();
@@ -78,21 +81,55 @@ namespace Codography.Services
                 }
             }
 
-            // 4. Yerleşim Ayarlarını belirliyoruz.
-            // Sugiyama algoritması hiyerarşik (katmanlı) bir düzen oluşturur.
-            var settings = new SugiyamaLayoutSettings
+            // 4. Yerleşim Hesaplamasını ve Algoritma Seçimini Yapıyoruz.
+            // Dışarıdan gelen 'algorithmType' değerine göre hangi yerleşim algoritmasının çalıştırılacağını seçiyoruz.
+            switch (algorithmType)
             {
-                NodeSeparation = 30,  // Aynı katmandaki kutular arasındaki yatay boşluk
-                LayerSeparation = 50, // Katmanlar arası dikey boşluk
-                Transformation = PlaneTransformation.Rotation(Math.PI / 2) // Grafiği döndürmek için dönüşüm uygular. Math.PI / 2 = 90 derece. Grafik yataydan dikeye (veya tam tersi) çevrilebilir.
-            };
+                // Eğer seçilen algoritma MDS ise
+                case LayoutAlgorithmType.MDS:
 
-            // 5. Yerleşim Hesaplamasını Başlatıyoruz.
-            // LayeredLayout sınıfı verilen graph ve ayarlara göre tüm Node'ların X,Y koordinatlarını hesaplar.
-            var layout = new LayeredLayout(geometryGraph, settings);
+                    // MdsLayoutSettings nesnesi oluşturulur.
+                    // Bu algoritma düğümleri organik, bulut benzeri şekilde dağıtır.
+                    var mdsSettings = new MdsLayoutSettings();
 
-            // Algoritmayı çalıştırıyoruz.
-            layout.Run();
+                    // GeometryGraph üzerinde MDS yerleşimi hesaplanır.
+                    // null : işlemi yarıda kesmek için bir CancellationToken (İptal Jetonu) kullanmadığımızı belirtir.
+                    LayoutHelpers.CalculateLayout(geometryGraph, mdsSettings, null);
+                    break;
+
+                // Eğer seçilen algoritma ForceDirected ise
+                case LayoutAlgorithmType.ForceDirected:
+
+                    // Fizik tabanlı (itme-çekme) ayarlar oluşturulur.
+                    var forceSettings = new FastIncrementalLayoutSettings
+                    {
+                        NodeSeparation = 30, // Düğümler arası minimum mesafe
+                        AvoidOverlaps = true // Kutuların üst üste binmesini engeller
+                    };
+                    // ForceDirected yerleşimi hesaplanır.
+                    LayoutHelpers.CalculateLayout(geometryGraph, forceSettings, null);
+                    break;
+
+                // Eğer Sugiyama seçildiyse (veya hiçbir şey seçilmediyse)
+                case LayoutAlgorithmType.Sugiyama:
+                default:
+
+                    // Sugiyama algoritması hiyerarşik (katmanlı) bir düzen oluşturur.
+                    var settings = new SugiyamaLayoutSettings
+                    {
+                        NodeSeparation = 30,  // Aynı katmandaki kutular arasındaki yatay boşluk
+                        LayerSeparation = 50, // Katmanlar arası dikey boşluk
+                        Transformation = PlaneTransformation.Rotation(Math.PI / 2) // Grafiği döndürmek için dönüşüm uygular. Math.PI / 2 = 90 derece. Grafik yataydan dikeye (veya tam tersi) çevrilebilir.
+                    };
+
+                    // LayeredLayout sınıfı verilen graph ve ayarlara göre tüm Node'ların X,Y koordinatlarını hesaplar.
+                    // Katmanlı yerleşim nesnesi oluşturulur.
+                    var layout = new LayeredLayout(geometryGraph, settings);
+
+                    // Algoritmayı çalıştırıyoruz.
+                    layout.Run();
+                    break;
+            }
 
             // Bu noktadan sonra: geometryGraph içindeki her Node'un Center (X,Y) değeri dolmuştur.
             // Yani artık her kutunun ekranda nereye çizileceği bellidir.

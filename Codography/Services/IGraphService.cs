@@ -13,9 +13,13 @@ namespace Codography.Services
         /// Sonuç olarak, yerleşimi (layout'u) hesaplanmış bir GeometryGraph nesnesi döndürür.
         /// </summary>
 
-        // ProjectAnalysisResult : Analiz sonrası oluşan proje verilerini tutar.
-        // GeometryGraph : MSAGL tarafından hesaplanmış konum bilgilerini içeren grafik yapısıdır.
-        GeometryGraph CalculateLayout(ProjectAnalysisResult analysisResult);
+        // GeometryGraph : MSAGL’nin hesapladığı, düğümlerin (Node) ve kenarların (Edge) X,Y koordinatlarını içeren grafik nesnesini döndürür.
+        // CalculateLayout : Yerleşim (layout) hesaplayan metodun adı.
+
+        // ProjectAnalysisResult analysisResult : Analiz sonucu oluşan tüm düğüm ve bağlantı verilerini parametre olarak alır. 
+        // LayoutAlgorithmType algorithmType : Hangi yerleşim algoritmasının kullanılacağını belirler.
+        // = LayoutAlgorithmType.Sugiyama : Eğer dışarıdan bir algoritma belirtilmezse, varsayılan olarak Sugiyama algoritması kullanılır.
+        GeometryGraph CalculateLayout(ProjectAnalysisResult analysisResult, LayoutAlgorithmType algorithmType = LayoutAlgorithmType.Sugiyama);
 
     }
 }
