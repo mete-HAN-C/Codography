@@ -14,21 +14,42 @@ namespace Codography.ViewModels
         // readonly: Bu servis yalnızca constructor’da atanır, sonradan yanlışlıkla değiştirilmesi engellenir.
         private readonly IAnalysisService _analysisService;
 
+        // IGraphService : Grafik yerleşimini hesaplayan servis arayüzüdür.
+        // Gerçek nesne genelde Dependency Injection ile gelir.
+        // _graphService : Bu sınıf içinde layout hesaplamak için kullanacağımız servis referansıdır.
+        private readonly IGraphService _graphService;
+
         // Eskiden ProgressBar kontrolü (pbAnaliz.IsIndeterminate) ve durum mesajları (txtDurum.Text) doğrudan MainWindow.xaml.cs dosyasında yönetiliyordu.
         // Artık bunu MainViewModel içerisine taşıdık. IsBusy özelliği ProgressBar'ı, StatusMessage ise durum metnini temsil ediyor. Bu sayede arayüz (UI) sadece veriyi göstermekle yükümlü hale geldi.
         private string _statusMessage = "Analiz için bir C# proje klasörü seçin...";
         private bool _isBusy;
 
+        // ObservableCollection<T> : İçindeki liste değiştiğinde (Add, Remove, Clear vs.) arayüze otomatik bildirim yapar.
+        // Böylece ekranda çizim otomatik güncellenir.
+
         // UI'daki TreeView bu listeye bağlanacak (Binding)
-        // Artık, koleksiyona bir eleman eklendiğinde veya silindiğinde TreeView bunu otomatik olarak algılayıp kendini günceller. Ayrıca INotifyPropertyChanged arayüzü sayesinde IsBusy gibi özellikler değiştiğinde UI anında haberdar olur.
+        // Artık, koleksiyona bir eleman eklendiğinde veya silindiğinde TreeView bunu otomatik olarak algılayıp kendini günceller.
+        // Ayrıca INotifyPropertyChanged arayüzü sayesinde IsBusy gibi özellikler değiştiğinde UI anında haberdar olur.
         public ObservableCollection<CodeNode> RootNodes { get; } = new ObservableCollection<CodeNode>();
+
+        // GraphNodeViewModel : Canvas üzerinde çizilecek kutuları temsil eder.
+        // CanvasNodes : Ekrandaki tüm düğüm (kutu) ViewModel’lerini tutan koleksiyon.
+        // Yeni nodes eklenince arayüz otomatik güncellenir.
+        public ObservableCollection<GraphNodeViewModel> CanvasNodes { get; } = new ObservableCollection<GraphNodeViewModel>();
+
+        // GraphEdgeViewModel : Canvas üzerinde çizilecek çizgileri temsil eder.
+        // CanvasEdges : Ekrandaki tüm bağlantı (çizgi) ViewModel’lerini tutan koleksiyon.
+        // Yeni edge eklenince arayüz otomatik güncellenir.
+        public ObservableCollection<GraphEdgeViewModel> CanvasEdges { get; } = new ObservableCollection<GraphEdgeViewModel>();
 
         // Constructor üzerinden IAnalysisService bağımlılığı dışarıdan alınır. Bu yaklaşıma Dependency Injection denir.
         // Amaç: ViewModel’in servis oluşturmasını engellemek, Test edilebilirliği artırmak, Farklı servis implementasyonlarının kolayca takılabilmesini sağlamak
-        // analysisService parametresi, daha önce tanımlanan readonly _analysisService alanına atanır.
-        public MainViewModel(IAnalysisService analysisService)
+        // analysisService parametresi, daha önce tanımlanan readonly _analysisService alanına atanır. Böylece analiz işlemleri bu servis üzerinden yapılır.
+        // graphService parametresi, sınıf içinde tanımlı readonly _graphService alanına atanır. Böylece grafik yerleşim hesaplamaları bu servis üzerinden yapılır.
+        public MainViewModel(IAnalysisService analysisService, IGraphService graphService)
         {
-            _analysisService = analysisService;
+            _analysisService = analysisService; // Dışarıdan gelen analiz servisini private alana kaydediyoruz.
+            _graphService = graphService; // Dışarıdan gelen grafik servisini private alana kaydediyoruz.
         }
 
         // Analiz sırasında ProgressBar'ı ve butonu kontrol etmek için
@@ -62,6 +83,11 @@ namespace Codography.ViewModels
                 // 2. Arka plan işlemi
                 // Analiz işi AnalysisService.cs sınıfına devredilir. O sınıftaki AnaliziBaslat metodu dosya yolu gönderilerek tetiklenir
                 var result = await _analysisService.AnaliziBaslatAsync(folderPath);
+
+                // Verilen analiz sonucuna göre grafik yerleşimini hesaplayan async metodu çağırır.
+                // (result : İçinde Node ve Edge bilgileri olan analiz sonucudur)
+                // Böylece Grafik yerleşimi arka planda hesaplanır, işlem bitince kaldığı yerden devam eder.
+                await UpdateGraphLayoutAsync(result);
 
                 // 3. Sonuçları UI listesine aktarma
                 // (Bu kısım UI thread'inde çalışır çünkü ObservableCollection UI ile bağlıdır)
@@ -125,6 +151,11 @@ namespace Codography.ViewModels
                         RootNodes.Add(node);
                     }
 
+                    // Verilen analiz sonucuna göre grafik yerleşimini hesaplayan async metodu çağırır.
+                    // (result : İçinde Node ve Edge bilgileri olan analiz sonucudur)
+                    // Böylece Grafik yerleşimi arka planda hesaplanır, işlem bitince kaldığı yerden devam eder.
+                    await UpdateGraphLayoutAsync(result);
+
                     // Daha önce analiz edilmiş bir proje yüklendiğinde gösterilecek durum mesajını oluşturur.
                     // Proje adını, ortalama Maintainability Index (sağlık puanı) değerini ve analiz tarihini kullanıcıya bilgi amaçlı gösterir.
                     // {result.AverageMaintainabilityIndex:F1} → MI değerini virgülden sonra 1 basamak olacak şekilde formatlar.
@@ -182,8 +213,67 @@ namespace Codography.ViewModels
             }
         }
 
+        // Grafik yerleşimini hesaplayan ve sonucu UI'a aktaran async metot.
+        // async : İçinde await kullanılacağı anlamına gelir.
+        // Task : Geriye değer döndürmez ama asenkron çalışır.
+        private async Task UpdateGraphLayoutAsync(ProjectAnalysisResult result)
+        {
+            // Kullanıcıya bilgi mesajı gösteriyoruz.
+            StatusMessage = "Grafik yerleşimi hesaplanıyor...";
+
+            // 1) MSAGL Hesaplaması (Arka Planda)
+            // Task.Run : Hesaplamayı arka thread'de çalıştırır. Böylece UI donmaz.
+            var geometryGraph = await Task.Run(() => _graphService.CalculateLayout(result));
+
+            // 2) Arayüz Koleksiyonlarını (UI) Temizle
+            // Önceki çizimleri temizliyoruz.
+            CanvasNodes.Clear();
+            CanvasEdges.Clear();
+
+            // 3) MAPPER: MSAGL → WPF ViewModel Dönüşümü
+            // MSAGL Node'larını WPF’in anlayacağı ViewModel’e çeviriyoruz.
+            foreach (var msaglNode in geometryGraph.Nodes)
+            {
+                // UserData içine daha önce CodeNode koymuştuk.
+                if (msaglNode.UserData is CodeNode codeNode)
+                {
+                    // MSAGL verisini UI modeline dönüştürüyoruz.
+                    CanvasNodes.Add(new GraphNodeViewModel
+                    {
+                        Data = codeNode, // Gerçek veri (Id, Name, Type vb.)
+                        Width = msaglNode.BoundingBox.Width, // MSAGL’in hesapladığı genişlik
+                        Height = msaglNode.BoundingBox.Height, // MSAGL’in hesapladığı yükseklik
+                        X = msaglNode.BoundingBox.Left, // Sol X koordinatı
+
+                        // MSAGL’den gelen Y değeri yukarı doğru artar.
+                        // WPF (Canvas) da ise Y değeri aşağı doğru artar.
+                        // Bu yüzden negatif çeviriyoruz ve WPF koordinat sistemine uygun hale getiriyoruz.
+                        Y = -msaglNode.BoundingBox.Top
+                    });
+                }
+            }
+
+            // MSAGL Edge'lerini WPF ViewModel'e dönüştürüyoruz.
+            foreach (var msaglEdge in geometryGraph.Edges)
+            {
+                // UserData içine daha önce CodeEdge koymuştuk.
+                if (msaglEdge.UserData is CodeEdge codeEdge)
+                {
+                    // Şimdilik sadece Data'yı aktarıyoruz.
+                    // Routing (kıvrım noktaları) ileride doldurulacak.
+                    CanvasEdges.Add(new GraphEdgeViewModel
+                    {
+                        Data = codeEdge
+                    });
+                }
+            }
+        }
+
         // Property değiştiğinde UI'ı haberdar eden mekanizma
         public event PropertyChangedEventHandler PropertyChanged;
+
+        // [CallerMemberName] özelliği, metodu çağıran property'nin adını (örn: "IsBusy") 
+        // otomatik olarak 'name' parametresine atar. Böylece string olarak hardcode yazmaktan kurtuluruz.
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

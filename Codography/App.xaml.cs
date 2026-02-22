@@ -2,6 +2,7 @@
 using Codography.Services;
 using Codography.ViewModels;
 using System.Windows;
+using Codography.Tests; // Test sınıfımız için
 
 namespace Codography
 {
@@ -21,6 +22,19 @@ namespace Codography
 
             // Servis koleksiyonu gerçek ServiceProvider’a dönüştürülür
             ServiceProvider = serviceCollection.BuildServiceProvider();
+        }
+        // Uygulama ilk başlatıldığında otomatik olarak çalışan metot.
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            // Base (Application) sınıfının OnStartup metodunu çağırıyoruz. Bu satır olmazsa WPF’in normal başlatma süreci düzgün çalışmaz.
+            base.OnStartup(e);
+
+            // MSAGL Algoritma Testi 
+            // Bu test : - Sahte düğümler oluşturur, - Layout hesaplatır, - Sonuçları Debug penceresine yazdırır
+            // Uygulama açılır açılmaz GraphLayoutTester içindeki RunTest() metodunu çalıştırırsak test başlar.
+            // İhtiyaç duyulduğunda aşağıdaki yorum satırı kaldırarak test başlatılabilir.
+
+            // GraphLayoutTester.RunTest();
         }
 
         // Uygulama boyunca kullanılacak servislerin ve ViewModel'lerin Dependency Injection sistemine kayıt edildiği metottur
