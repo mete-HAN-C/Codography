@@ -24,6 +24,38 @@ namespace Codography.ViewModels
         private string _statusMessage = "Analiz için bir C# proje klasörü seçin...";
         private bool _isBusy;
 
+        // private alan (backing field): Bu değişken, CanvasWidth değerinin hafızada tutulduğu asıl yerdir.
+        // Dışarıdan (UI veya başka sınıflardan) doğrudan erişilemez. Sadece bu sınıf içinden erişilir.
+        // Amaç: Değeri kontrolsüz şekilde değiştirilmesini engellemek.
+        private double _canvasWidth;
+
+        // public property: Bu özellik (property), UI'nin (XAML tarafının) CanvasWidth değerine erişmesini sağlar.
+        // Yani XAML’de Binding yaptığımız yer burasıdır.
+        // UI bu property üzerinden değeri okur ve değiştirir.
+        public double CanvasWidth
+        {
+            get => _canvasWidth; // get → UI CanvasWidth değerini okumak istediğinde çalışır. Mevcut genişlik değerini döndürür. 
+
+            // set → UI veya kod tarafından yeni bir değer atandığında çalışır.
+            // Yeni gelen değer private alana kaydedilir.
+            // OnPropertyChanged() "değer değişti" bilgisini UI’ya bildirir. Eğer bu olmazsa, ekranda değişiklik görünmez.
+            set { _canvasWidth = value; OnPropertyChanged(); }
+        }
+
+        // private alan : Gerçek yüksekliği tutar.
+        private double _canvasHeight;
+
+        // public property : UI tarafından bind edilir.
+        public double CanvasHeight
+        {
+            get => _canvasHeight; // get → Mevcut yüksekliği döndürür.
+
+            // set → Yeni değer geldiğinde çalışır, değeri private alana atar
+            // OnPropertyChanged() ile UI’ya değişiklik bildirimi yapıyoruz.
+            // Böylece Canvas yüksekliği anında güncellenir.
+            set { _canvasHeight = value; OnPropertyChanged(); } 
+        }
+
         // ObservableCollection<T> : İçindeki liste değiştiğinde (Add, Remove, Clear vs.) arayüze otomatik bildirim yapar.
         // Böylece ekranda çizim otomatik güncellenir.
 
@@ -230,6 +262,27 @@ namespace Codography.ViewModels
             CanvasNodes.Clear();
             CanvasEdges.Clear();
 
+            // geometryGraph → MSAGL tarafından hesaplanan tüm grafiği temsil eder.
+            // BoundingBox → Grafikteki tüm node’ları kapsayan en dış dikdörtgendir. Yani grafiğin "kapladığı alanın sınırlarını" verir.
+            // Left → Bu dikdörtgenin en sol kenarının X koordinatıdır. Yani grafikteki en soldaki node’un X başlangıç noktasıdır.
+            // Bunu saklamamızın sebebi: Daha sonra tüm node’ları 0 noktasına göre hizalayabilmek.
+            double minX = geometryGraph.BoundingBox.Left;
+
+            // Top → Bu dikdörtgenin en üst kenarının Y koordinatıdır. (MSAGL koordinat sisteminde Y ekseni yukarı doğru artar.)
+            // Bu değer grafikteki en üst noktayı temsil eder.
+            // Bunu saklamamızın sebebi: WPF koordinat sistemine çevirirken Y eksenini ters çevirebilmek için referans olarak kullanmak.
+            double maxY = geometryGraph.BoundingBox.Top;
+
+            // CanvasWidth → WPF tarafındaki çizim alanının genişliğini belirler.
+            // geometryGraph.BoundingBox.Width → grafiğin toplam genişliği.
+            // +100 → kenarlarda boşluk (margin/padding) bırakmak için ekstra alan ekliyoruz. Böylece Node'lar kenara yapışmaz.
+            CanvasWidth = geometryGraph.BoundingBox.Width + 100;
+
+            // CanvasHeight → WPF Canvas'ın yüksekliğini belirler.
+            // geometryGraph.BoundingBox.Height → grafiğin toplam yüksekliği.
+            // +100 → üst ve alt boşluk bırakmak için ek alan. Böylece grafik daha rahat ve estetik görünür.
+            CanvasHeight = geometryGraph.BoundingBox.Height + 100;
+
             // 3) MAPPER: MSAGL → WPF ViewModel Dönüşümü
             // MSAGL Node'larını WPF’in anlayacağı ViewModel’e çeviriyoruz.
             foreach (var msaglNode in geometryGraph.Nodes)
@@ -243,12 +296,21 @@ namespace Codography.ViewModels
                         Data = codeNode, // Gerçek veri (Id, Name, Type vb.)
                         Width = msaglNode.BoundingBox.Width, // MSAGL’in hesapladığı genişlik
                         Height = msaglNode.BoundingBox.Height, // MSAGL’in hesapladığı yükseklik
-                        X = msaglNode.BoundingBox.Left, // Sol X koordinatı
 
-                        // MSAGL’den gelen Y değeri yukarı doğru artar.
-                        // WPF (Canvas) da ise Y değeri aşağı doğru artar.
-                        // Bu yüzden negatif çeviriyoruz ve WPF koordinat sistemine uygun hale getiriyoruz.
-                        Y = -msaglNode.BoundingBox.Top
+                        // X koordinatını hesaplarken:
+                        // msaglNode.BoundingBox.Left - minX : Node’un MSAGL koordinat sistemindeki sol X değerinden
+                        // - minX ile Tüm grafikteki en küçük X değerini çıkarıyoruz.
+                        // Amaç: Grafiği 0 noktasına yaslamak (normalize etmek). Böylece en soldaki node X=0 civarında
+                        // + 50 : Canvas’ın sol tarafında boşluk bırakıyoruz. Böylece Node’lar kenara yapışmaz, En soldaki node ≈ 50’den başlar
+                        X = msaglNode.BoundingBox.Left - minX + 50,
+
+                        // Y koordinatını hesaplarken:
+                        // maxY : Grafikteki en üst Y değeri (MSAGL sistemine göre).
+                        // - msaglNode.BoundingBox.Top : Bu çıkarma işlemi Y eksenini ters çevirir. Çünkü :
+                        // MSAGL’den gelen Y değeri yukarı doğru artar. WPF (Canvas) da ise Y değeri aşağı doğru artar.
+                        // Bu yüzden negatife çeviriyoruz ve WPF koordinat sistemine uygun hale getiriyoruz.
+                        // + 50 : Üst tarafta boşluk bırakmak için margin ekliyoruz. Böylece node’lar Canvas’ın en üstüne yapışmaz. En üstteki node ≈ 50’den başlar
+                        Y = maxY - msaglNode.BoundingBox.Top + 50
                     });
                 }
             }

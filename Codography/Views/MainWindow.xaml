@@ -6,127 +6,189 @@
         xmlns:models="clr-namespace:Codography.Models"
         xmlns:conv="clr-namespace:Codography.Converters" 
         mc:Ignorable="d"
-        Title="Codography - Proje Analiz Aracı" Height="600" Width="900">
-    <Grid>
+        Title="Codography - Proje Analiz Aracı" Height="700" Width="1100"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Background="#E5E7EB">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="350" MinWidth="250" MaxWidth="550"/>
+            <ColumnDefinition Width="1"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <DockPanel Grid.Column="0" Background="#F5F5F5">
-            <TextBlock DockPanel.Dock="Top" Text="Proje Gezgini" FontSize="16" FontWeight="Bold" Margin="10"/>
+        <Grid Grid.Column="0" Background="White">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-            <TreeView x:Name="trvProje" ItemsSource="{Binding RootNodes}" Margin="5" Background="White" BorderBrush="#DDD">
+            <TextBlock Grid.Row="0" Text="📂 Proje Gezgini" FontSize="15" FontWeight="SemiBold" Foreground="#374151" Margin="15,15,15,10"/>
+
+            <TreeView x:Name="trvProje" Grid.Row="1" ItemsSource="{Binding RootNodes}" BorderThickness="0" Background="Transparent" Margin="10,0,5,10">
                 <TreeView.Resources>
                     <HierarchicalDataTemplate DataType="{x:Type models:CodeNode}" ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock x:Name="TypeIcon" Text="[M] " FontWeight="Bold" Foreground="MediumPurple"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                            <TextBlock x:Name="TypeIcon" Text="[M] " FontWeight="Bold" Foreground="#8B5CF6"/>
 
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="#1F2937" FontWeight="Medium"/>
 
                             <StackPanel x:Name="MethodDetails" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
                                 <TextBlock Text="{Binding ReturnType, StringFormat=' : {0}'}" 
-                   Foreground="#28A745" FontSize="11" FontStyle="Italic"/>
+                                           Foreground="#10B981" FontSize="11" FontStyle="Italic"/>
 
                                 <TextBlock Text="{Binding Parameters.Count, StringFormat=' ({0} Parametre)'}" 
-                   Foreground="DimGray" FontSize="10" Margin="5,0,0,0"/>
+                                           Foreground="#9CA3AF" FontSize="10" Margin="5,0,0,0"/>
 
                                 <TextBlock Text="{Binding ComplexityScore, StringFormat=' [Puan: {0}]'}" 
-                   FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center">
+                                           FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="Gray"/>
+                                            <Setter Property="Foreground" Value="#6B7280"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding ComplexityScore, Converter={StaticResource GreaterThanConverter}, ConverterParameter=10}" Value="True">
-                                                    <Setter Property="Foreground" Value="Red"/>
+                                                    <Setter Property="Foreground" Value="#EF4444"/>
                                                     <Setter Property="FontWeight" Value="Bold"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding ComplexityScore, Converter={StaticResource RangeConverter}, ConverterParameter='5-10'}" Value="True">
-                                                    <Setter Property="Foreground" Value="Orange"/>
+                                                    <Setter Property="Foreground" Value="#F59E0B"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+
                                 <TextBlock Text="{Binding PureCodeLines, StringFormat=' [{0} Satır]'}" 
-           Foreground="DimGray" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center"/>
+                                           Foreground="#9CA3AF" FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center"/>
 
                                 <TextBlock Text="{Binding CommentLines, StringFormat=' ({0} Yorum)'}" 
-           FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center">
+                                           FontSize="10" Margin="5,0,0,0" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#28A745"/>
+                                            <Setter Property="Foreground" Value="#10B981"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding CommentRatio, Converter={StaticResource LowerThanConverter}, ConverterParameter=10}" Value="True">
-                                                    <Setter Property="Foreground" Value="#DC3545"/>
+                                                    <Setter Property="Foreground" Value="#EF4444"/>
                                                     <Setter Property="ToolTip" Value="Düşük Yorum Oranı! Kodun daha fazla açıklamaya ihtiyacı var."/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <Border Background="{Binding HealthColor}" CornerRadius="4" Padding="4,1" Margin="8,0,0,0" VerticalAlignment="Center">
+
+                                <Border Background="{Binding HealthColor}" CornerRadius="4" Padding="5,2" Margin="8,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding MaintainabilityIndex, StringFormat='MI: {0:F0}'}" 
-               Foreground="White" FontSize="9" FontWeight="Bold" ToolTip="Bakım Yapılabilirlik İndeksi"/>
+                                               Foreground="White" FontSize="9" FontWeight="Bold" ToolTip="Bakım Yapılabilirlik İndeksi"/>
                                 </Border>
                             </StackPanel>
-                            <TextBlock Text=" ⚠️" 
-                   Foreground="#FFC107" 
-                   FontWeight="Bold"
-                   Visibility="{Binding HasWarning, Converter={StaticResource BooleanToVisibilityConverter}}"
-                   ToolTip="{Binding WarningSummary}"
-                   VerticalAlignment="Center"
-                   Margin="5,0,0,0"/>
+
+                            <TextBlock Text=" ⚠️" Foreground="#F59E0B" FontWeight="Bold"
+                                       Visibility="{Binding HasWarning, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       ToolTip="{Binding WarningSummary}" VerticalAlignment="Center" Margin="5,0,0,0"/>
                         </StackPanel>
 
                         <HierarchicalDataTemplate.Triggers>
                             <DataTrigger Binding="{Binding Type}" Value="Class">
                                 <Setter TargetName="TypeIcon" Property="Text" Value="[C] "/>
-                                <Setter TargetName="TypeIcon" Property="Foreground" Value="#007ACC"/>
+                                <Setter TargetName="TypeIcon" Property="Foreground" Value="#3B82F6"/>
                                 <Setter TargetName="MethodDetails" Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </HierarchicalDataTemplate.Triggers>
                     </HierarchicalDataTemplate>
                 </TreeView.Resources>
             </TreeView>
-        </DockPanel>
+        </Grid>
 
-        <Grid Grid.Column="1" Background="White">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="Codography Analiz Paneli" FontSize="22" FontWeight="Thin" Margin="10" HorizontalAlignment="Center"/>
+        <GridSplitter Grid.Column="1" Width="1" HorizontalAlignment="Stretch" Background="#D1D5DB" Cursor="SizeWE"/>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10">
-                    <Button x:Name="btnAnaliz" 
-                        Content="Yeni Analiz Başlat" 
-                        Style="{StaticResource ModernButtonStyle}"
-                        Background="{StaticResource PrimaryBlue}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                        Click="btnAnaliz_Click" />
+        <Grid Grid.Column="2" Background="#F9FAFB">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-                    <Button x:Name="btnKaydet" 
-                        Content="Analizi Kaydet" 
-                        Style="{StaticResource ModernButtonStyle}"
-                        Background="{StaticResource SuccessGreen}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                        Click="btnKaydet_Click" />
+            <Grid Grid.Row="0">
+                <Border Background="White" Padding="20,15,20,15">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.08" Direction="270" Color="Black"/>
+                    </Border.Effect>
 
-                    <Button x:Name="btnYukle" 
-                        Content="Kayıttan Yükle" 
-                        Style="{StaticResource ModernButtonStyle}"
-                        Background="{StaticResource SecondaryGray}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                        Click="btnYukle_Click" />
-                </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                <ProgressBar x:Name="pbAnaliz" Height="10" Width="300" Margin="0,20,0,0" 
+                        <TextBlock Grid.Column="0" Text="Codography Analiz Paneli" FontSize="20" FontWeight="Light" Foreground="#111827" VerticalAlignment="Center"/>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="btnAnaliz" Content="Yeni Analiz Başlat" 
+                                    Style="{StaticResource ModernButtonStyle}" Background="{StaticResource PrimaryBlue}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" Click="btnAnaliz_Click" />
+
+                            <Button x:Name="btnKaydet" Content="Analizi Kaydet" 
+                                    Style="{StaticResource ModernButtonStyle}" Background="{StaticResource SuccessGreen}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" Click="btnKaydet_Click" />
+
+                            <Button x:Name="btnYukle" Content="Kayıttan Yükle" 
+                                    Style="{StaticResource ModernButtonStyle}" Background="{StaticResource SecondaryGray}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" Click="btnYukle_Click" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <ProgressBar x:Name="pbAnaliz" Height="3" VerticalAlignment="Bottom" BorderThickness="0"
+                             Foreground="{StaticResource PrimaryBlue}" Background="Transparent"
                              IsIndeterminate="{Binding IsBusy}"
                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            </Grid>
 
-                <TextBlock x:Name="txtDurum" Text="{Binding StatusMessage}" 
-                           Margin="10" Foreground="DimGray" HorizontalAlignment="Center"/>
-            </StackPanel>
+            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="10">
+                <ItemsControl ItemsSource="{Binding CanvasNodes}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas Background="Transparent" 
+                                    Width="{Binding CanvasWidth}" 
+                                    Height="{Binding CanvasHeight}" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-            <StatusBar VerticalAlignment="Bottom" Background="#007ACC" Foreground="White">
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Canvas.Left" Value="{Binding X}" />
+                            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="{Binding Width}" Height="{Binding Height}" CornerRadius="6" ToolTip="{Binding Data.Id}">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#007ACC" Offset="0"/>
+                                        <GradientStop Color="#004e82" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="3" Opacity="0.3" Direction="315" Color="Black"/>
+                                </Border.Effect>
+
+                                <TextBlock Text="{Binding Data.Name}" 
+                                           Foreground="White" 
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" 
+                                           VerticalAlignment="Center" 
+                                           TextTrimming="CharacterEllipsis" 
+                                           Padding="8"/>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StatusBar Grid.Row="2" Background="#1F2937" Foreground="#D1D5DB" Padding="10,2">
                 <StatusBarItem Content="{Binding StatusMessage}"/>
             </StatusBar>
         </Grid>
